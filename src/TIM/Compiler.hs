@@ -40,4 +40,17 @@ compiledPrimitives = M.fromList
 type CompEnv = M.Map Name AddrMode
 
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
-compileSC = undefined
+compileSC env (name, args, body) = (name, Take (length args):instrs)
+  where instrs = compileR body env'
+        env' = foldr (uncurry M.insert) env (zip args (map Arg [1..]))
+
+compileR :: Expr Name -> CompEnv -> [Instr]
+compileR (EAp e1 e2) env = Push (compileA e2 env):compileR e1 env
+compileR e@(EVar n) env = [Enter (compileA e env)]
+compileR e@(ENum n) env = [Enter (compileA e env)]
+compileR e env = error "compileR: can't do this yet"
+
+compileA :: Expr Name -> CompEnv -> AddrMode
+compileA (EVar v) env = env M.! v
+compileA (ENum n) _ = Const n
+compileA e env = Code (compileR e env)
