@@ -12,7 +12,6 @@ module TIM.Types
 , ValueStack
 , Dump
 , CodeStore
-, lookupCode
 , Stats (..)
 , initialStats
 , incTickCount
@@ -75,9 +74,6 @@ type ValueStack = ()
 type Dump = ()
 
 type CodeStore = M.Map Name [Instr]
-
-lookupCode :: CodeStore -> Name -> [Instr]
-lookupCode = (M.!)
 
 data Stats = Stats { tickCount :: Int }
 
