@@ -1,0 +1,16 @@
+module Core.Prelude
+( preludeDefs
+) where
+
+import Common
+
+import Core.AST
+
+preludeDefs :: Program Name
+preludeDefs =
+  [ ("I", ["x"], EVar "x")
+  , ("K", ["x", "y"], EVar "x")
+  , ("K1", ["x", "y"], EVar "y")
+  , ("S", ["f", "g", "x"], EAp (EAp (EVar "f") (EVar "x")) (EAp (EVar "g") (EVar "x")))
+  , ("compose", ["f", "g", "x"], EAp (EVar "f") (EAp (EVar "g") (EVar "x")))
+  , ("twice", ["f"], EAp (EAp (EVar "compose") (EVar "f")) (EVar "f")) ]
