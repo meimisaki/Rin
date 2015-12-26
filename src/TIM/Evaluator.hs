@@ -75,3 +75,11 @@ dyadicPrim op n1 n2 = case op of
   Sub -> n1 - n2
   Mult -> n1 * n2
   Div -> n1 `div` n2
+  Gr -> if n1 > n2 then t else f
+  GrEq -> if n1 >= n2 then t else f
+  Lt -> if n1 < n2 then t else f
+  LtEq -> if n1 <= n2 then t else f
+  Eq -> if n1 == n2 then t else f
+  NotEq -> if n1 /= n2 then t else f
+  where t = 0
+        f = 1

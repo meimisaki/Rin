@@ -33,13 +33,25 @@ initialValueStack = []
 initialDump :: Dump
 initialDump = ()
 
+operators :: [String]
+operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]
+
+mkOp :: String -> Op
+mkOp op = case op of
+  "+" -> Add
+  "-" -> Sub
+  "*" -> Mult
+  "/" -> Div
+  ">" -> Gr
+  ">=" -> GrEq
+  "<" -> Lt
+  "<=" -> LtEq
+  "==" -> Eq
+  "/=" -> NotEq
+
 compiledPrim :: CodeStore
-compiledPrim = M.fromList
-  [ ("+", dyadicPrim Add)
-  , ("-", dyadicPrim Sub)
-  , ("*", dyadicPrim Mult)
-  , ("/", dyadicPrim Div)
-  , ("if", ifPrim) ]
+compiledPrim = M.fromList (("if", ifPrim):map mkDyadicPrim operators)
+  where mkDyadicPrim op = (op, dyadicPrim (mkOp op))
 
 ifPrim :: [Instr]
 ifPrim = [Take 3, Push cont, Enter (Arg 1)]
@@ -63,13 +75,16 @@ compileSC env (name, args, body) = (name, takeArgs ++ instrs)
 compileR :: Expr Name -> CompEnv -> [Instr]
 compileR e env
   | isArith e = compileB e env [Return]
+  | EAp (EAp (EAp (EVar "if") e0) e1) e2 <- e = -- full condition
+    let cont = [Cond [Enter (compileA e1 env)] [Enter (compileA e2 env)]]
+    in compileB e0 env cont
   | EAp e1 e2 <- e = Push (compileA e2 env):compileR e1 env
   | EVar _ <- e = [Enter (compileA e env)]
   | otherwise = error "compileR: can't do this yet"
 
 isArith :: Expr Name -> Bool
 isArith (ENum _) = True
-isArith (EAp (EAp (EVar v) _) _) = v `elem` ["+", "-", "*", "/"]
+isArith (EAp (EAp (EVar v) _) _) = elem v operators
 isArith _ = False
 
 compileA :: Expr Name -> CompEnv -> AddrMode
@@ -81,10 +96,5 @@ compileB :: Expr Name -> CompEnv -> [Instr] -> [Instr]
 compileB e env cont = if isArith e
   then case e of
     ENum n -> PushValue (ValueConst n):cont
-    EAp (EAp (EVar v) e1) e2 -> compileB e2 env (compileB e1 env (Op op:cont))
-      where op = case v of
-              "+" -> Add
-              "-" -> Sub
-              "*" -> Mult
-              "/" -> Div
+    EAp (EAp (EVar v) e1) e2 -> compileB e2 env (compileB e1 env (Op (mkOp v):cont))
   else Push (Code cont):compileR e env
