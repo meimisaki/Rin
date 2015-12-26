@@ -1,5 +1,8 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Core.AST
 ( Expr (..)
+, pattern ECond
 , Alter
 , Supercomb
 , Program
@@ -12,11 +15,12 @@ data Expr a
   | ENum Int
   | EConstr Int Int -- tag, arity
   | EAp (Expr a) (Expr a)
-  | ELet [(a, Expr a)] (Expr a)
-  | EFix [(a, Expr a)] (Expr a)
+  | ELet Bool [(a, Expr a)] (Expr a)
   | ECase (Expr a) [Alter a]
   | EAbs [a] (Expr a)
   deriving Show -- TODO: pretty print
+
+pattern ECond e0 e1 e2 = EAp (EAp (EAp (EVar "if") e0) e1) e2
 
 type Alter a = (Int, [a], Expr a)
 

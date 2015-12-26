@@ -73,24 +73,31 @@ compileSC env (name, args, body) = (name, Take d n:instrs)
         env' = foldr (uncurry M.insert) env (zip args (map Arg [1..]))
         n = length args
 
--- TODO: optimize full condition
 compileR :: Expr Name -> CompEnv -> Int -> (Int, [Instr])
 compileR e@(isArith -> True) env d = compileB e env d [Return]
-compileR (ELet defs body) env d = (d', mvs ++ instrs)
+compileR (ELet rec defs body) env d = (d', mvs ++ instrs)
   where (dn, mvs, _) = foldr go (d + n, [], d + n) exps
         go e (dn, mvs, slot) = (dn', Move slot am:mvs, slot - 1)
-          where (dn', am) = compileA e env dn
-        env' = foldr (uncurry M.insert) env (zip xs (map Arg [d + 1..]))
+          where (dn', am) = compileA e (if rec then env' else env) dn
+        env' = foldr (uncurry M.insert) env (zip xs ams)
+        ams = map (if rec then mkIndMode else Arg) [d + 1..]
         (d', instrs) = compileR body env' dn
         n = length defs
         xs = map fst defs
         exps = map snd defs
+compileR (ECond e0 e1 e2) env d = (max d0 (max d1 d2), instrs)
+  where (d0, instrs) = compileB e0 env d [Cond [Enter am1] [Enter am2]]
+        (d1, am1) = compileA e1 env d
+        (d2, am2) = compileA e2 env d
 compileR (EAp e1 e2) env d = (d2, Push am:instrs)
   where (d1, am) = compileA e2 env d
         (d2, instrs) = compileR e1 env d1
 compileR e@(EVar _) env d = (d', [Enter am])
   where (d', am) = compileA e env d
 compileR _ _ _ = error "compileR: can't do this yet"
+
+mkIndMode :: Int -> AddrMode
+mkIndMode n = Code [Enter (Arg n)]
 
 isArith :: Expr Name -> Bool
 isArith (ENum _) = True
@@ -107,7 +114,8 @@ compileB :: Expr Name -> CompEnv -> Int -> [Instr] -> (Int, [Instr])
 compileB e env d cont = if isArith e
   then case e of
     ENum n -> (d, PushValue (ValueConst n):cont)
-    EAp (EAp (EVar v) e1) e2 -> compileB e2 env d' cont'
-      where (d', cont') = compileB e1 env d (Op (mkOp v):cont)
+    EAp (EAp (EVar v) e1) e2 -> (max d1 d2, instrs2)
+      where (d1, instrs1) = compileB e1 env d (Op (mkOp v):cont)
+            (d2, instrs2) = compileB e2 env d instrs1
   else (d', Push (Code cont):instrs)
     where (d', instrs) = compileR e env d
