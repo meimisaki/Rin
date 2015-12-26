@@ -17,40 +17,74 @@ compile prog = TIM
   , valueStack = initialValueStack
   , dump = initialDump
   , heap = H.empty
-  , codeStore = M.union compiledCode compiledPrimitives
+  , codeStore = M.union compiledCode compiledPrim
   , stats = initialStats }
   where scDefs = preludeDefs ++ prog
         compiledCode = M.fromList (map (compileSC initialEnv) scDefs)
         initialEnv = M.fromList [(name, Label name) | name <- names]
-        names = [name | (name, _, _) <- scDefs] ++ M.keys compiledPrimitives
+        names = [name | (name, _, _) <- scDefs] ++ M.keys compiledPrim
 
 initialStack :: Stack
-initialStack = []
+initialStack = [([], FrameNull)]
 
 initialValueStack :: ValueStack
-initialValueStack = ()
+initialValueStack = []
 
 initialDump :: Dump
 initialDump = ()
 
-compiledPrimitives :: CodeStore
-compiledPrimitives = M.fromList
-  []
+compiledPrim :: CodeStore
+compiledPrim = M.fromList
+  [ ("+", dyadicPrim Add)
+  , ("-", dyadicPrim Sub)
+  , ("*", dyadicPrim Mult)
+  , ("/", dyadicPrim Div)
+  , ("if", ifPrim) ]
+
+ifPrim :: [Instr]
+ifPrim = [Take 3, Push cont, Enter (Arg 1)]
+  where cont = Code [Cond [Enter (Arg 2)] [Enter (Arg 3)]]
+
+dyadicPrim :: Op -> [Instr]
+dyadicPrim op = [Take 2, Push cont1, Enter (Arg 2)]
+  where cont1 = Code [Push cont2, Enter (Arg 1)]
+        cont2 = Code [Op op, Return]
 
 type CompEnv = M.Map Name AddrMode
 
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
-compileSC env (name, args, body) = (name, Take (length args):instrs)
+compileSC env (name, args, body) = (name, takeArgs ++ instrs)
   where instrs = compileR body env'
         env' = foldr (uncurry M.insert) env (zip args (map Arg [1..]))
+        takeArgs = case length args of
+          0 -> [] -- CAF
+          n -> [Take n]
 
 compileR :: Expr Name -> CompEnv -> [Instr]
-compileR (EAp e1 e2) env = Push (compileA e2 env):compileR e1 env
-compileR e@(EVar n) env = [Enter (compileA e env)]
-compileR e@(ENum n) env = [Enter (compileA e env)]
-compileR e env = error "compileR: can't do this yet"
+compileR e env
+  | isArith e = compileB e env [Return]
+  | EAp e1 e2 <- e = Push (compileA e2 env):compileR e1 env
+  | EVar _ <- e = [Enter (compileA e env)]
+  | otherwise = error "compileR: can't do this yet"
+
+isArith :: Expr Name -> Bool
+isArith (ENum _) = True
+isArith (EAp (EAp (EVar v) _) _) = v `elem` ["+", "-", "*", "/"]
+isArith _ = False
 
 compileA :: Expr Name -> CompEnv -> AddrMode
 compileA (EVar v) env = env M.! v
 compileA (ENum n) _ = Const n
 compileA e env = Code (compileR e env)
+
+compileB :: Expr Name -> CompEnv -> [Instr] -> [Instr]
+compileB e env cont = if isArith e
+  then case e of
+    ENum n -> PushValue (ValueConst n):cont
+    EAp (EAp (EVar v) e1) e2 -> compileB e2 env (compileB e1 env (Op op:cont))
+      where op = case v of
+              "+" -> Add
+              "-" -> Sub
+              "*" -> Mult
+              "/" -> Div
+  else Push (Code cont):compileR e env

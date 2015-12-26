@@ -17,13 +17,14 @@ eval state = state:rest
   where rest = if final state then [] else eval next
         next = doAdmin (step state)
 
+-- TODO: garbage collection
 doAdmin :: TIM -> TIM
 doAdmin state = state { stats = incTickCount (stats state) }
 
 step :: TIM -> TIM
 step state@(TIM {..}) = case instrs of
   Take n:instrs' -> if length stack < n
-    then error "Too few args for Take instruction"
+    then error "Too few args for `Take` instruction"
     else state
       { instrs = instrs'
       , framePtr = framePtr'
@@ -38,6 +39,25 @@ step state@(TIM {..}) = case instrs of
     { instrs = instrs'
     , stack = closure:stack }
     where closure = mkClosure am framePtr heap codeStore
+  PushValue vam:instrs' -> state
+    { instrs = instrs'
+    , valueStack = n:valueStack }
+    where n = case vam of
+            FramePtr -> let FrameInt n' = framePtr in n'
+            ValueConst n' -> n'
+  [Return] -> state
+    { instrs = instrs'
+    , framePtr = framePtr'
+    , stack = stack' }
+    where (instrs', framePtr'):stack' = stack
+  Op op:instrs' -> state
+    { instrs = instrs'
+    , valueStack = dyadicPrim op n1 n2:valueStack' }
+    where n1:n2:valueStack' = valueStack
+  [Cond instrs1 instrs2] -> state
+    { instrs = if n == 0 then instrs1 else instrs2
+    , valueStack = valueStack' }
+    where n:valueStack' = valueStack
 
 mkClosure :: AddrMode -> FramePtr -> H.Heap Frame -> CodeStore -> Closure
 mkClosure am framePtr heap codeStore = case am of
@@ -47,4 +67,11 @@ mkClosure am framePtr heap codeStore = case am of
   Const n -> (intCode, FrameInt n)
 
 intCode :: [Instr]
-intCode = []
+intCode = [PushValue FramePtr, Return]
+
+dyadicPrim :: Op -> Int -> Int -> Int
+dyadicPrim op n1 n2 = case op of
+  Add -> n1 + n2
+  Sub -> n1 - n2
+  Mult -> n1 * n2
+  Div -> n1 `div` n2

@@ -1,6 +1,8 @@
 module TIM.Types
 ( Instr (..)
 , AddrMode (..)
+, ValueAddrMode (..)
+, Op (..)
 , TIM (..)
 , FramePtr (..)
 , Stack
@@ -28,12 +30,28 @@ data Instr
   = Take Int
   | Enter AddrMode
   | Push AddrMode
+  | PushValue ValueAddrMode
+  | Return
+  | Op Op
+  | Cond [Instr] [Instr]
+  deriving Show
 
 data AddrMode
   = Arg Int
   | Label Name
   | Code [Instr]
   | Const Int
+  deriving Show
+
+data ValueAddrMode
+  = FramePtr
+  | ValueConst Int
+  deriving Show
+
+data Op
+  = Add | Sub | Mult | Div | Neg
+  | Gr | GrEq | Lt | LtEq | Eq | NotEq
+  deriving Show
 
 data TIM = TIM
   { instrs :: [Instr]
@@ -44,11 +62,13 @@ data TIM = TIM
   , heap :: Heap Frame
   , codeStore :: CodeStore
   , stats :: Stats }
+  deriving Show
 
 data FramePtr
   = FrameAddr Addr
   | FrameInt Int
   | FrameNull
+  deriving Show
 
 type Stack = [Closure]
 
@@ -69,13 +89,13 @@ updateFrame heap (FrameAddr addr) n closure = update heap addr xs'
   where xs = lookup heap addr
         xs' = take (n - 1) xs ++ [closure] ++ drop n xs
 
-type ValueStack = ()
+type ValueStack = [Int]
 
 type Dump = ()
 
 type CodeStore = M.Map Name [Instr]
 
-data Stats = Stats { tickCount :: Int }
+data Stats = Stats { tickCount :: Int } deriving Show
 
 initialStats :: Stats
 initialStats = Stats 0

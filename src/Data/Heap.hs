@@ -1,5 +1,5 @@
 module Data.Heap
-( Heap
+( Heap (..)
 , Addr
 , nullAddr
 , empty
@@ -14,7 +14,10 @@ import Prelude hiding (lookup)
 
 import qualified Data.Map as M
 
-type Heap a = ([Addr], M.Map Addr a)
+data Heap a = Heap [Addr] (M.Map Addr a)
+
+instance Show a => Show (Heap a) where
+  show (Heap _ assoc) = show assoc
 
 type Addr = Int
 
@@ -22,19 +25,19 @@ nullAddr :: Addr
 nullAddr = 0
 
 empty :: Heap a
-empty = ([1..], M.empty)
+empty = Heap [1..] M.empty
 
 size :: Heap a -> Int
-size = M.size . snd
+size (Heap _ assoc) = M.size assoc
 
 alloc :: Heap a -> a -> (Heap a, Addr)
-alloc (addr:xs, assoc) val = ((xs, M.insert addr val assoc), addr)
+alloc (Heap (addr:xs) assoc) val = (Heap xs (M.insert addr val assoc), addr)
 
 free :: Heap a -> Addr -> Heap a
-free (xs, assoc) addr = (addr:xs, M.delete addr assoc)
+free (Heap xs assoc) addr = Heap (addr:xs) (M.delete addr assoc)
 
 lookup :: Heap a -> Addr -> a
-lookup (_, assoc) addr = assoc M.! addr
+lookup (Heap _ assoc) addr = assoc M.! addr
 
 update :: Heap a -> Addr -> a -> Heap a
-update (xs, assoc) addr val = (xs, M.insert addr val assoc)
+update (Heap xs assoc) addr val = Heap xs (M.insert addr val assoc)
