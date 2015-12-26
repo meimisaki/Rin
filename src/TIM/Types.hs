@@ -27,7 +27,8 @@ import Data.Heap
 import qualified Data.Map as M
 
 data Instr
-  = Take Int
+  = Take Int Int -- allocation, arity
+  | Move Int AddrMode
   | Enter AddrMode
   | Push AddrMode
   | PushValue ValueAddrMode

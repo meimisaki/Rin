@@ -23,14 +23,20 @@ doAdmin state = state { stats = incTickCount (stats state) }
 
 step :: TIM -> TIM
 step state@(TIM {..}) = case instrs of
-  Take n:instrs' -> if length stack < n
+  Take d n:instrs' -> if length stack < n
     then error "Too few args for `Take` instruction"
     else state
       { instrs = instrs'
       , framePtr = framePtr'
       , stack = drop n stack
       , heap = heap' }
-    where (heap', framePtr') = allocFrame heap (take n stack)
+    where (heap', framePtr') = allocFrame heap frame
+          frame = take n stack ++ replicate (d - n) ([], FrameNull)
+  Move i am:instrs' -> state
+    { instrs = instrs'
+    , heap = heap' }
+    where heap' = updateFrame heap framePtr i closure
+          closure = mkClosure am framePtr heap codeStore
   [Enter am] -> state
     { instrs = instrs'
     , framePtr = framePtr' }
