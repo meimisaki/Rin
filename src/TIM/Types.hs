@@ -32,6 +32,8 @@ data Instr
   | Enter AddrMode
   | Push AddrMode
   | PushValue ValueAddrMode
+  | PushMarker Int
+  | UpdateMarkers Int
   | Return
   | Op Op
   | Cond [Instr] [Instr]
@@ -92,7 +94,7 @@ updateFrame heap (FrameAddr addr) n closure = update heap addr xs'
 
 type ValueStack = [Int]
 
-type Dump = ()
+type Dump = [(FramePtr, Int, Stack)]
 
 type CodeStore = M.Map Name [Instr]
 

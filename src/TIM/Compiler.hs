@@ -33,7 +33,7 @@ initialValueStack :: ValueStack
 initialValueStack = []
 
 initialDump :: Dump
-initialDump = ()
+initialDump = []
 
 operators :: [String]
 operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]
@@ -55,46 +55,63 @@ compiledPrim :: CodeStore
 compiledPrim = M.fromList (("if", ifPrim):map mkDyadicPrim operators)
   where mkDyadicPrim op = (op, dyadicPrim (mkOp op))
 
+mkTake :: Int -> Int -> [Instr]
+mkTake 0 0 = []
+mkTake d n = [UpdateMarkers n, Take d n]
+
 ifPrim :: [Instr]
-ifPrim = [Take 3 3, Push cont, Enter (Arg 1)]
+ifPrim = mkTake 3 3 ++ [Push cont, Enter (Arg 1)]
   where cont = Code [Cond [Enter (Arg 2)] [Enter (Arg 3)]]
 
 dyadicPrim :: Op -> [Instr]
-dyadicPrim op = [Take 2 2, Push cont1, Enter (Arg 2)]
+dyadicPrim op = mkTake 2 2 ++ [Push cont1, Enter (Arg 2)]
   where cont1 = Code [Push cont2, Enter (Arg 1)]
         cont2 = Code [Op op, Return]
 
 type CompEnv = M.Map Name AddrMode
 
--- TODO: optimize CAF
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
-compileSC env (name, args, body) = (name, Take d n:instrs)
+compileSC env (name, args, body) = (name, mkTake d n ++ instrs)
   where (d, instrs) = compileR body env' n
         env' = foldr (uncurry M.insert) env (zip args (map Arg [1..]))
         n = length args
 
+-- TODO: optimize full condition
 compileR :: Expr Name -> CompEnv -> Int -> (Int, [Instr])
 compileR e@(isArith -> True) env d = compileB e env d [Return]
 compileR (ELet rec defs body) env d = (d', mvs ++ instrs)
   where (dn, mvs, _) = foldr go (d + n, [], d + n) exps
         go e (dn, mvs, slot) = (dn', Move slot am:mvs, slot - 1)
-          where (dn', am) = compileA e (if rec then env' else env) dn
-        env' = foldr (uncurry M.insert) env (zip xs ams)
-        ams = map (if rec then mkIndMode else Arg) [d + 1..]
+          where (dn', am) = compileU e slot (if rec then env' else env) dn
+        env' = foldr (uncurry M.insert) env (zip xs (map mkIndMode [d + 1..]))
         (d', instrs) = compileR body env' dn
         n = length defs
         xs = map fst defs
         exps = map snd defs
-compileR (ECond e0 e1 e2) env d = (max d0 (max d1 d2), instrs)
-  where (d0, instrs) = compileB e0 env d [Cond [Enter am1] [Enter am2]]
-        (d1, am1) = compileA e1 env d
-        (d2, am2) = compileA e2 env d
-compileR (EAp e1 e2) env d = (d2, Push am:instrs)
-  where (d1, am) = compileA e2 env d
-        (d2, instrs) = compileR e1 env d1
-compileR e@(EVar _) env d = (d', [Enter am])
-  where (d', am) = compileA e env d
+compileR (EAp e a@(isAtomic -> True)) env d = (d', Push am:instrs)
+  where (d', instrs) = compileR e env d
+        am = compileA a env
+compileR (EAp eFun eArg) env d = (d2, Move slot am:Push (mkIndMode slot):instrs)
+  where (d1, am) = compileU eArg slot env slot
+        (d2, instrs) = compileR eFun env d1
+        slot = d + 1
+compileR e@(EVar _) env d = (d, mkEnter am)
+  where am = compileA e env
 compileR _ _ _ = error "compileR: can't do this yet"
+
+isAtomic :: Expr Name -> Bool
+isAtomic (EVar _) = True
+isAtomic (ENum _) = True
+isAtomic _ = False
+
+compileU :: Expr Name -> Int -> CompEnv -> Int -> (Int, AddrMode)
+compileU (ENum n) _ _ d = (d, Const n)
+compileU e u env d = (d', Code (PushMarker u:instrs))
+  where (d', instrs) = compileR e env d
+
+mkEnter :: AddrMode -> [Instr]
+mkEnter (Code instrs) = instrs
+mkEnter am = [Enter am]
 
 mkIndMode :: Int -> AddrMode
 mkIndMode n = Code [Enter (Arg n)]
@@ -104,11 +121,9 @@ isArith (ENum _) = True
 isArith (EAp (EAp (EVar v) _) _) = elem v operators
 isArith _ = False
 
-compileA :: Expr Name -> CompEnv -> Int -> (Int, AddrMode)
-compileA (EVar v) env d = (d, env M.! v)
-compileA (ENum n) _ d = (d, Const n)
-compileA e env d = (d', Code instrs)
-  where (d', instrs) = compileR e env d
+compileA :: Expr Name -> CompEnv -> AddrMode
+compileA (EVar v) env = env M.! v
+compileA (ENum n) _ = Const n
 
 compileB :: Expr Name -> CompEnv -> Int -> [Instr] -> (Int, [Instr])
 compileB e env d cont = if isArith e

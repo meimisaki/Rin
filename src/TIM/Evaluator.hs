@@ -51,11 +51,33 @@ step state@(TIM {..}) = case instrs of
     where n = case vam of
             FramePtr -> let FrameInt n' = framePtr in n'
             ValueConst n' -> n'
-  [Return] -> state
+  PushMarker x:instrs' -> state
     { instrs = instrs'
-    , framePtr = framePtr'
-    , stack = stack' }
-    where (instrs', framePtr'):stack' = stack
+    , stack = []
+    , dump = (framePtr, x, stack):dump }
+  UpdateMarkers n:instrs' -> if m == n
+    then state { instrs = instrs' }
+    else state
+      { stack = stack ++ stack'
+      , dump = dump'
+      , heap = heap'' }
+    where m = length (take n stack)
+          heap'' = updateFrame heap framePtr' x (partial, framePtr'')
+          (heap', framePtr'') = allocFrame heap stack
+          (framePtr', x, stack'):dump' = dump
+          partial = map (Push . Arg) [m, m - 1..1] ++ instrs
+  [Return] -> case stack of
+    [] -> state
+      { stack = stack'
+      , dump = dump'
+      , heap = heap' }
+      where heap' = updateFrame heap framePtr' x (intCode, FrameInt n)
+            n:_ = valueStack
+            (framePtr', x, stack'):dump' = dump
+    (instrs', framePtr'):stack' -> state
+      { instrs = instrs'
+      , framePtr = framePtr'
+      , stack = stack' }
   Op op:instrs' -> state
     { instrs = instrs'
     , valueStack = dyadicPrim op n1 n2:valueStack' }
