@@ -15,6 +15,7 @@ compile :: Program Name -> TIM
 compile prog = TIM
   { instrs = [Enter (Label "main")]
   , framePtr = FrameNull
+  , dataFramePtr = FrameNull
   , stack = initialStack
   , valueStack = initialValueStack
   , dump = initialDump
@@ -70,10 +71,13 @@ dyadicPrim op = mkTake 2 2 ++ [Push cont1, Enter (Arg 2)]
 
 type CompEnv = M.Map Name AddrMode
 
+updateEnv :: CompEnv -> [Name] -> [AddrMode] -> CompEnv
+updateEnv env xs ams = foldr (uncurry M.insert) env (zip xs ams)
+
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
 compileSC env (name, args, body) = (name, mkTake d n ++ instrs)
-  where (d, instrs) = compileR body env' n
-        env' = foldr (uncurry M.insert) env (zip args (map Arg [1..]))
+  where env' = updateEnv env args (map Arg [1..])
+        (d, instrs) = compileR body env' n
         n = length args
 
 -- TODO: optimize full condition
@@ -83,7 +87,7 @@ compileR (ELet rec defs body) env d = (d', mvs ++ instrs)
   where (dn, mvs, _) = foldr go (d + n, [], d + n) exps
         go e (dn, mvs, slot) = (dn', Move slot am:mvs, slot - 1)
           where (dn', am) = compileU e slot (if rec then env' else env) dn
-        env' = foldr (uncurry M.insert) env (zip xs (map mkIndMode [d + 1..]))
+        env' = updateEnv env xs (map mkIndMode [d + 1..])
         (d', instrs) = compileR body env' dn
         n = length defs
         xs = map fst defs
@@ -97,7 +101,19 @@ compileR (EAp eFun eArg) env d = (d2, Move slot am:Push (mkIndMode slot):instrs)
         slot = d + 1
 compileR e@(EVar _) env d = (d, mkEnter am)
   where am = compileA e env
-compileR _ _ _ = error "compileR: can't do this yet"
+compileR (EConstr tag arity) env d = (d, instrs)
+  where instrs = mkTake arity arity ++ [ReturnConstr tag]
+compileR (ECase e alts) env d = (d', Push (Code [Switch cases]):instrs)
+  where xs = map (\alt -> compileE alt env d) alts
+        (d', instrs) = compileR e env (maximum (map fst xs))
+        cases = M.fromList (map snd xs)
+
+compileE :: Alter Name -> CompEnv -> Int -> (Int, (Int, [Instr]))
+compileE (tag, xs, body) env d = (d', (tag, mvs ++ instrs))
+  where mvs = map (\i -> Move (d + i) (Data i)) [1..n]
+        env' = updateEnv env xs (map Arg [d + 1..])
+        (d', instrs) = compileR body env' (d + n)
+        n = length xs
 
 isAtomic :: Expr Name -> Bool
 isAtomic (EVar _) = True

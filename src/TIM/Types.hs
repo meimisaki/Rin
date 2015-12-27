@@ -35,12 +35,15 @@ data Instr
   | PushMarker Int
   | UpdateMarkers Int
   | Return
+  | ReturnConstr Int
   | Op Op
   | Cond [Instr] [Instr]
+  | Switch (M.Map Int [Instr])
   deriving Show
 
 data AddrMode
   = Arg Int
+  | Data Int
   | Label Name
   | Code [Instr]
   | Const Int
@@ -59,6 +62,7 @@ data Op
 data TIM = TIM
   { instrs :: [Instr]
   , framePtr :: FramePtr
+  , dataFramePtr :: FramePtr
   , stack :: Stack
   , valueStack :: ValueStack
   , dump :: Dump

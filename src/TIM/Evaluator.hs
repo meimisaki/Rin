@@ -35,16 +35,14 @@ step state@(TIM {..}) = case instrs of
   Move i am:instrs' -> state
     { instrs = instrs'
     , heap = heap' }
-    where heap' = updateFrame heap framePtr i closure
-          closure = mkClosure am framePtr heap codeStore
+    where heap' = updateFrame heap framePtr i (mkClosure am)
   [Enter am] -> state
     { instrs = instrs'
     , framePtr = framePtr' }
-    where (instrs', framePtr') = mkClosure am framePtr heap codeStore
+    where (instrs', framePtr') = mkClosure am
   Push am:instrs' -> state
     { instrs = instrs'
-    , stack = closure:stack }
-    where closure = mkClosure am framePtr heap codeStore
+    , stack = mkClosure am:stack }
   PushValue vam:instrs' -> state
     { instrs = instrs'
     , valueStack = n:valueStack }
@@ -78,6 +76,19 @@ step state@(TIM {..}) = case instrs of
       { instrs = instrs'
       , framePtr = framePtr'
       , stack = stack' }
+  [ReturnConstr tag] -> case stack of
+    [] -> state
+      { stack = stack'
+      , dump = dump'
+      , heap = heap' }
+      where heap' = updateFrame heap framePtr' x (instrs, framePtr)
+            (framePtr', x, stack'):dump' = dump
+    (instrs', framePtr'):stack' -> state
+      { instrs = instrs'
+      , framePtr = framePtr'
+      , dataFramePtr = framePtr
+      , stack = stack'
+      , valueStack = tag:valueStack }
   Op op:instrs' -> state
     { instrs = instrs'
     , valueStack = dyadicPrim op n1 n2:valueStack' }
@@ -86,13 +97,16 @@ step state@(TIM {..}) = case instrs of
     { instrs = if n == 0 then instrs1 else instrs2
     , valueStack = valueStack' }
     where n:valueStack' = valueStack
-
-mkClosure :: AddrMode -> FramePtr -> H.Heap Frame -> CodeStore -> Closure
-mkClosure am framePtr heap codeStore = case am of
-  Arg n -> getFrame heap framePtr n
-  Label name -> (codeStore M.! name, framePtr )
-  Code instrs -> (instrs, framePtr)
-  Const n -> (intCode, FrameInt n)
+  [Switch cases] -> state
+    { instrs = cases M.! tag
+    , valueStack = valueStack' }
+    where tag:valueStack' = valueStack
+  where mkClosure am = case am of
+          Arg n -> getFrame heap framePtr n
+          Data n -> getFrame heap dataFramePtr n
+          Label name -> (codeStore M.! name, framePtr)
+          Code instrs -> (instrs, framePtr)
+          Const n -> (intCode, FrameInt n)
 
 intCode :: [Instr]
 intCode = [PushValue FramePtr, Return]
