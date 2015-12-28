@@ -44,7 +44,7 @@ data Instr
 data AddrMode
   = Arg Int
   | Data Int
-  | Label Name
+  | Label Name Int
   | Code [Instr]
   | Const Int
   deriving Show
@@ -100,7 +100,7 @@ type ValueStack = [Int]
 
 type Dump = [(FramePtr, Int, Stack)]
 
-type CodeStore = M.Map Name [Instr]
+type CodeStore = FramePtr
 
 data Stats = Stats { tickCount :: Int } deriving Show
 

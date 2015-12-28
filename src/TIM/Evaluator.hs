@@ -104,7 +104,7 @@ step state@(TIM {..}) = case instrs of
   where mkClosure am = case am of
           Arg n -> getFrame heap framePtr n
           Data n -> getFrame heap dataFramePtr n
-          Label name -> (codeStore M.! name, framePtr)
+          Label _ offset -> getFrame heap codeStore offset
           Code instrs -> (instrs, framePtr)
           Const n -> (intCode, FrameInt n)
 

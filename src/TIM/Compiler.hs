@@ -13,19 +13,23 @@ import TIM.Types
 
 compile :: Program Name -> TIM
 compile prog = TIM
-  { instrs = [Enter (Label "main")]
+  { instrs = mkEnter (initialEnv M.! "main")
   , framePtr = FrameNull
   , dataFramePtr = FrameNull
   , stack = initialStack
   , valueStack = initialValueStack
   , dump = initialDump
-  , heap = H.empty
-  , codeStore = M.union compiledCode compiledPrim
+  , heap = heap
+  , codeStore = globalFramePtr
   , stats = initialStats }
   where scDefs = preludeDefs ++ prog
-        compiledCode = M.fromList (map (compileSC initialEnv) scDefs)
-        initialEnv = M.fromList [(name, Label name) | name <- names]
-        names = [name | (name, _, _) <- scDefs] ++ M.keys compiledPrim
+        compiledCode = map (compileSC initialEnv) scDefs ++ compiledPrim
+        initialEnv = M.fromList (zip names ams)
+        names = map fst compiledCode
+        ams = flip map (zip [1..] compiledCode) $ \(offset, (name, instrs)) ->
+          let am = Label name offset
+          in if isCAF instrs then Code [Enter am] else am
+        (heap, globalFramePtr) = allocateInitialHeap compiledCode
 
 initialStack :: Stack
 initialStack = [([], FrameNull)]
@@ -35,6 +39,18 @@ initialValueStack = []
 
 initialDump :: Dump
 initialDump = []
+
+isCAF :: [Instr] -> Bool
+isCAF (UpdateMarkers _:_) = False
+isCAF _ = True
+
+allocateInitialHeap :: [(Name, [Instr])] -> (H.Heap Frame, CodeStore)
+allocateInitialHeap compiledCode = (heap, globalFramePtr)
+  where (heap, globalFramePtr) = allocFrame H.empty frame
+        frame = map markCAF (zip [1..] compiledCode)
+        markCAF (offset, (_, instrs)) = if isCAF instrs
+          then (PushMarker offset:instrs, globalFramePtr)
+          else (instrs, globalFramePtr)
 
 operators :: [String]
 operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]
@@ -52,12 +68,13 @@ mkOp op = case op of
   "==" -> Eq
   "/=" -> NotEq
 
-compiledPrim :: CodeStore
-compiledPrim = M.fromList (("if", ifPrim):map mkDyadicPrim operators)
+compiledPrim :: [(Name, [Instr])]
+compiledPrim = ("if", ifPrim):map mkDyadicPrim operators
   where mkDyadicPrim op = (op, dyadicPrim (mkOp op))
 
 mkTake :: Int -> Int -> [Instr]
 mkTake 0 0 = []
+mkTake d 0 = [Take d 0]
 mkTake d n = [UpdateMarkers n, Take d n]
 
 ifPrim :: [Instr]
@@ -80,7 +97,7 @@ compileSC env (name, args, body) = (name, mkTake d n ++ instrs)
         (d, instrs) = compileR body env' n
         n = length args
 
--- TODO: optimize full condition
+-- TODO: optimize full condition, eliminate jumps and reuse frame slots
 compileR :: Expr Name -> CompEnv -> Int -> (Int, [Instr])
 compileR e@(isArith -> True) env d = compileB e env d [Return]
 compileR (ELet rec defs body) env d = (d', mvs ++ instrs)
@@ -92,6 +109,7 @@ compileR (ELet rec defs body) env d = (d', mvs ++ instrs)
         n = length defs
         xs = map fst defs
         exps = map snd defs
+-- TODO: optimize saturated application, never check for partial application
 compileR (EAp e a@(isAtomic -> True)) env d = (d', Push am:instrs)
   where (d', instrs) = compileR e env d
         am = compileA a env
@@ -108,6 +126,7 @@ compileR (ECase e alts) env d = (d', Push (Code [Switch cases]):instrs)
         (d', instrs) = compileR e env (maximum (map fst xs))
         cases = M.fromList (map snd xs)
 
+-- TODO: eliminate unused variables, don't move it into current frame
 compileE :: Alter Name -> CompEnv -> Int -> (Int, (Int, [Instr]))
 compileE (tag, xs, body) env d = (d', (tag, mvs ++ instrs))
   where mvs = map (\i -> Move (d + i) (Data i)) [1..n]
