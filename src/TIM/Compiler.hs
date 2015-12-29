@@ -89,7 +89,7 @@ dyadicPrim op = mkTake 2 2 ++ [Push cont1, Enter (Arg 2)]
 type CompEnv = M.Map Name AddrMode
 
 updateEnv :: CompEnv -> [Name] -> [AddrMode] -> CompEnv
-updateEnv env xs ams = foldr (uncurry M.insert) env (zip xs ams)
+updateEnv env xs ams = extend env (zip xs ams)
 
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
 compileSC env (name, args, body) = (name, mkTake d n ++ instrs)
@@ -126,7 +126,7 @@ compileR (ECase e alts) env d = (d', Push (Code [Switch cases]):instrs)
         (d', instrs) = compileR e env (maximum (map fst xs))
         cases = M.fromList (map snd xs)
 
--- TODO: eliminate unused variables, don't move it into current frame
+-- TODO: eliminate unused variables, don't move them into current frame
 compileE :: Alter Name -> CompEnv -> Int -> (Int, (Int, [Instr]))
 compileE (tag, xs, body) env d = (d', (tag, mvs ++ instrs))
   where mvs = map (\i -> Move (d + i) (Data i)) [1..n]
