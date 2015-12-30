@@ -134,11 +134,6 @@ compileE (tag, xs, body) env d = (d', (tag, mvs ++ instrs))
         (d', instrs) = compileR body env' (d + n)
         n = length xs
 
-isAtomic :: Expr Name -> Bool
-isAtomic (EVar _) = True
-isAtomic (ENum _) = True
-isAtomic _ = False
-
 compileU :: Expr Name -> Int -> CompEnv -> Int -> (Int, AddrMode)
 compileU (ENum n) _ _ d = (d, Const n)
 compileU e u env d = (d', Code (PushMarker u:instrs))

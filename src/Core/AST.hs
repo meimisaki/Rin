@@ -1,8 +1,6 @@
-{-# LANGUAGE PatternSynonyms #-}
-
 module Core.AST
 ( Expr (..)
-, pattern ECond
+, isAtomic
 , Alter
 , Supercomb
 , Program
@@ -18,9 +16,13 @@ data Expr a
   | ELet Bool [(a, Expr a)] (Expr a)
   | ECase (Expr a) [Alter a]
   | EAbs [a] (Expr a)
-  deriving Show -- TODO: pretty print
+  deriving Show
 
-pattern ECond e0 e1 e2 = EAp (EAp (EAp (EVar "if") e0) e1) e2
+isAtomic :: Expr a -> Bool
+isAtomic e = case e of
+  EVar _ -> True
+  ENum _ -> True
+  _ -> False
 
 type Alter a = (Int, [a], Expr a)
 
