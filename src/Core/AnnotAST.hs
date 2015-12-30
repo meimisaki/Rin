@@ -13,6 +13,9 @@ module Core.AnnotAST
 , Annot (..)
 , AnnotExpr
 , removeAnnot
+, AnnotAlter
+, AnnotSupercomb
+, AnnotProgram
 ) where
 
 import Common
@@ -59,3 +62,9 @@ type AnnotExpr a b = ExprF (Annot a) b
 
 removeAnnot :: AnnotExpr a b -> Expr b
 removeAnnot = toExpr (snd . unAnnot)
+
+type AnnotAlter a b = AlterF (Annot a) b
+
+type AnnotSupercomb a b = SupercombF (Annot a) b
+
+type AnnotProgram a b = ProgramF (Annot a) b
