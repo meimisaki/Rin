@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Core.PrettyPrint
-( pprint
+( Show (..)
 ) where
 
 import Common
@@ -9,8 +9,20 @@ import Common
 import Core.AST
 import Text.PrettyPrint
 
+instance {-# OVERLAPS #-} Show (Expr Name) where
+  show = show . pprintExpr
+
+instance {-# OVERLAPS #-} Show (Alter Name) where
+  show = show . pprintAlter
+
+instance {-# OVERLAPS #-} Show (Supercomb Name) where
+  show = show . pprintSC
+
+instance {-# OVERLAPS #-} Show (Program Name) where
+  show = show . pprint
+
 pprint :: Program Name -> Doc
-pprint = vcat . map pprintSC
+pprint = vcat . map pprintSC . getProgram
 
 tab :: Int
 tab = 2
@@ -19,12 +31,9 @@ indent :: Doc -> Doc
 indent doc = nest tab doc <> nest (-tab) empty
 
 pprintSC :: Supercomb Name -> Doc
-pprintSC (name, args, body) = sep
+pprintSC (Supercomb name args body) = sep
   [ text name <+> hsep (map text args) <+> equals
   , indent (pprintExpr body) ]
-
-instance {-# OVERLAPS #-} Show (Expr Name) where
-  show = show . pprintExpr
 
 parens' :: Bool -> Doc -> Doc
 parens' False = parens
@@ -53,6 +62,6 @@ pprintExpr e = case e of
     , indent (pprintExpr body) ]
 
 pprintAlter :: Alter Name -> Doc
-pprintAlter (tag, xs, body) = sep
+pprintAlter (Alter tag xs body) = sep
   [ char '<' <> int tag <> char '>' <+> hsep (map text xs) <+> text "->"
   , indent (pprintExpr body) ]

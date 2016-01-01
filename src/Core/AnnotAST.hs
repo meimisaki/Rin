@@ -1,13 +1,15 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
 module Core.AnnotAST
 ( ExprF
 , ExprF' (..)
-, AlterF
-, SupercombF
-, ProgramF
+, AlterF (..)
+, SupercombF (..)
+, ProgramF (..)
 , toExpr
 , toAlter
 , Annot (..)
@@ -32,14 +34,24 @@ data ExprF' f a
   | ELetF Bool [(a, ExprF f a)] (ExprF f a)
   | ECaseF (ExprF f a) [AlterF f a]
   | EAbsF [a] (ExprF f a)
-
-type AlterF f a = (Int, [a], ExprF f a)
-
-type SupercombF f a = (Name, [a], ExprF f a)
-
-type ProgramF f a = [SupercombF f a]
+  deriving Functor
 
 deriving instance (Show a, Show (ExprF f a)) => Show (ExprF' f a)
+
+data AlterF f a = AlterF Int [a] (ExprF f a)
+  deriving Functor
+
+deriving instance (Show a, Show (ExprF f a)) => Show (AlterF f a)
+
+data SupercombF f a = SupercombF Name [a] (ExprF f a)
+  deriving Functor
+
+deriving instance (Show a, Show (ExprF f a)) => Show (SupercombF f a)
+
+newtype ProgramF f a = ProgramF { getProgramF :: [SupercombF f a] }
+  deriving (Functor, Monoid)
+
+deriving instance (Show a, Show (ExprF f a)) => Show (ProgramF f a)
 
 toExpr :: (ExprF f a -> ExprF' f a) -> ExprF f a -> Expr a
 toExpr f e = case f e of
@@ -54,9 +66,10 @@ toExpr f e = case f e of
   EAbsF args body -> EAbs args (toExpr f body)
 
 toAlter :: (ExprF f a -> ExprF' f a) -> AlterF f a -> Alter a
-toAlter f (tag, xs, body) = (tag, xs, toExpr f body)
+toAlter f (AlterF tag xs body) = Alter tag xs (toExpr f body)
 
-newtype Annot a b = Annot { unAnnot :: (a, b) } deriving Show
+newtype Annot a b = Annot { unAnnot :: (a, b) }
+  deriving (Show, Functor)
 
 type AnnotExpr a b = ExprF (Annot a) b
 

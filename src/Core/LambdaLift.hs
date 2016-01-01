@@ -14,8 +14,8 @@ import Data.List
 import qualified Data.Set as S
 
 abstract :: AnnotProgram (S.Set Name) Name -> Program Name
-abstract = map abstractSC
-  where abstractSC (name, args, body) = (name, args, abstractExpr body)
+abstract = Program . map abstractSC . getProgramF
+  where abstractSC (SupercombF name args body) = Supercomb name args (abstractExpr body)
 
 abstractExpr :: AnnotExpr (S.Set Name) Name -> Expr Name
 abstractExpr (Annot (S.toList -> fv, e)) = case e of
@@ -33,11 +33,11 @@ abstractExpr (Annot (S.toList -> fv, e)) = case e of
           anonym = ""
 
 abstractAlter :: AnnotAlter (S.Set Name) Name -> Alter Name
-abstractAlter (tag, xs, body) = (tag, xs, abstractExpr body)
+abstractAlter (AlterF tag xs body) = Alter tag xs (abstractExpr body)
 
 collect :: Program Name -> Program Name
-collect = concatMap collectSC
-  where collectSC (name, args, body) = (name, args, body'):scDefs
+collect = Program . concatMap collectSC . getProgram
+  where collectSC (Supercomb name args body) = Supercomb name args body':scDefs
           where (scDefs, body') = collectExpr body
 
 mkLet :: Bool -> [(a, Expr a)] -> Expr a -> Expr a
@@ -56,7 +56,7 @@ collectExpr e = case e of
     where (defsSC, exps') = merge (map collectExpr exps)
           (bodySC, body') = collectExpr body
           (lambdas, defs') = partition (isAbs . snd) (zip xs exps')
-          scDefs = [(name, args, body) | (name, EAbs args body) <- lambdas]
+          scDefs = [Supercomb name args body | (name, EAbs args body) <- lambdas]
           xs = map fst defs
           exps = map snd defs
           isAbs (EAbs _ _) = True
@@ -69,7 +69,7 @@ collectExpr e = case e of
   where merge xs = (concatMap fst xs, map snd xs)
 
 collectAlter :: Alter Name -> ([Supercomb Name], Alter Name)
-collectAlter (tag, xs, body) = (scDefs, (tag, xs, body'))
+collectAlter (Alter tag xs body) = (scDefs, Alter tag xs body')
   where (scDefs, body') = collectExpr body
 
 -- TODO: eta-abstraction optimize, merge directly nested lambdas

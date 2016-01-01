@@ -23,12 +23,12 @@ newName = do
   return name
 
 rename :: Program Name -> Program Name
-rename prog = runNS (mapM renameSC prog) ns
-  where ns = mkNameSupply (S.fromList [name | (name, _, _) <- prog])
-        renameSC (name, args, body) = do
+rename (Program prog) = Program (runNS (mapM renameSC prog) ns)
+  where ns = mkNameSupply (S.fromList [name | (Supercomb name _ _) <- prog])
+        renameSC (Supercomb name args body) = do
           (env, args') <- renameArgs M.empty args
           body' <- renameExpr env body
-          return (name, args', body')
+          return (Supercomb name args' body')
 
 type RenameEnv = M.Map Name Name
 
@@ -64,7 +64,7 @@ renameExpr env e = case e of
     return (EAbs args' body')
 
 renameAlter :: RenameEnv -> Alter Name -> NS (Alter Name)
-renameAlter env (tag, xs, body) = do
+renameAlter env (Alter tag xs body) = do
   (env', xs') <- renameArgs env xs
   body' <- renameExpr env' body
-  return (tag, xs', body')
+  return (Alter tag xs' body')

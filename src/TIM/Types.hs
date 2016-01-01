@@ -102,7 +102,8 @@ type Dump = [(FramePtr, Int, Stack)]
 
 type CodeStore = FramePtr
 
-data Stats = Stats { tickCount :: Int } deriving Show
+data Stats = Stats { tickCount :: Int }
+  deriving Show
 
 initialStats :: Stats
 initialStats = Stats 0

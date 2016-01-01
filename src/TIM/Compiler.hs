@@ -9,6 +9,7 @@ import Common
 import Core
 import qualified Data.Heap as H
 import qualified Data.Map as M
+import Data.Monoid
 import TIM.Types
 
 compile :: Program Name -> TIM
@@ -22,7 +23,7 @@ compile prog = TIM
   , heap = heap
   , codeStore = globalFramePtr
   , stats = initialStats }
-  where scDefs = preludeDefs ++ prog
+  where scDefs = getProgram (preludeDefs <> prog)
         compiledCode = map (compileSC initialEnv) scDefs ++ compiledPrim
         initialEnv = M.fromList (zip names ams)
         names = map fst compiledCode
@@ -92,7 +93,7 @@ updateEnv :: CompEnv -> [Name] -> [AddrMode] -> CompEnv
 updateEnv env xs ams = extend env (zip xs ams)
 
 compileSC :: CompEnv -> Supercomb Name -> (Name, [Instr])
-compileSC env (name, args, body) = (name, mkTake d n ++ instrs)
+compileSC env (Supercomb name args body) = (name, mkTake d n ++ instrs)
   where env' = updateEnv env args (map Arg [1..])
         (d, instrs) = compileR body env' n
         n = length args
@@ -128,7 +129,7 @@ compileR (ECase e alts) env d = (d', Push (Code [Switch cases]):instrs)
 
 -- TODO: eliminate unused variables, don't move them into current frame
 compileE :: Alter Name -> CompEnv -> Int -> (Int, (Int, [Instr]))
-compileE (tag, xs, body) env d = (d', (tag, mvs ++ instrs))
+compileE (Alter tag xs body) env d = (d', (tag, mvs ++ instrs))
   where mvs = map (\i -> Move (d + i) (Data i)) [1..n]
         env' = updateEnv env xs (map Arg [d + 1..])
         (d', instrs) = compileR body env' (d + n)

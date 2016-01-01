@@ -1,9 +1,12 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Core.AST
 ( Expr (..)
 , isAtomic
-, Alter
-, Supercomb
-, Program
+, Alter (..)
+, Supercomb (..)
+, Program (..)
 ) where
 
 import Common
@@ -16,7 +19,7 @@ data Expr a
   | ELet Bool [(a, Expr a)] (Expr a)
   | ECase (Expr a) [Alter a]
   | EAbs [a] (Expr a)
-  deriving Show
+  deriving (Show, Functor)
 
 isAtomic :: Expr a -> Bool
 isAtomic e = case e of
@@ -24,8 +27,11 @@ isAtomic e = case e of
   ENum _ -> True
   _ -> False
 
-type Alter a = (Int, [a], Expr a)
+data Alter a = Alter Int [a] (Expr a)
+  deriving (Show, Functor)
 
-type Supercomb a = (Name, [a], Expr a)
+data Supercomb a = Supercomb Name [a] (Expr a)
+  deriving (Show, Functor)
 
-type Program a = [Supercomb a]
+newtype Program a = Program { getProgram :: [Supercomb a] }
+  deriving (Show, Functor, Monoid)

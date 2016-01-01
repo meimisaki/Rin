@@ -9,8 +9,8 @@ import Core.AnnotAST
 import qualified Data.Set as S
 
 freeVars :: Program Name -> AnnotProgram (S.Set Name) Name
-freeVars = map freeVarsSC
-  where freeVarsSC (name, args, body) = (name, args, body')
+freeVars = ProgramF . map freeVarsSC . getProgram
+  where freeVarsSC (Supercomb name args body) = SupercombF name args body'
           where body' = freeVarsExpr (S.fromList args) body
 
 freeVarsExpr :: S.Set Name -> Expr Name -> AnnotExpr (S.Set Name) Name
@@ -36,7 +36,7 @@ freeVarsExpr vars e = Annot $ case e of
     where e' = freeVarsExpr vars e
           alts' = map (freeVarsAlter vars) alts
           altsFV = S.unions (map bind alts')
-          bind (_, xs, body) = fv body S.\\ S.fromList xs
+          bind (AlterF _ xs body) = fv body S.\\ S.fromList xs
   EAbs args body -> (bodyFV, EAbsF args body')
     where body' = freeVarsExpr vars' body
           vars' = S.union vars (S.fromList args)
@@ -44,6 +44,6 @@ freeVarsExpr vars e = Annot $ case e of
   where fv = fst . unAnnot
 
 freeVarsAlter :: S.Set Name -> Alter Name -> AnnotAlter (S.Set Name) Name
-freeVarsAlter vars (tag, xs, body) = (tag, xs, body')
+freeVarsAlter vars (Alter tag xs body) = AlterF tag xs body'
   where body' = freeVarsExpr vars' body
         vars' = S.union vars (S.fromList xs)
