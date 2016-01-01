@@ -1,5 +1,8 @@
+{-# LANGUAGE RecordWildCards #-}
+
 module Core.Renamer
 ( rename
+, rename_
 ) where
 
 import Common
@@ -7,6 +10,7 @@ import Common
 import Control.Monad.State
 import Core.AST
 import Data.NameSupply
+import Data.Functor.Identity
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -22,25 +26,32 @@ newName = do
   put ns'
   return name
 
-rename :: Program Name -> Program Name
-rename (Program prog) = Program (runNS (mapM renameSC prog) ns)
+rename_ :: Program Name -> Program Name
+rename_ = fmap runIdentity . rename runIdentity . fmap Identity
+
+rename :: Functor f => (f Name -> Name) -> Program (f Name) -> Program (f Name)
+rename nameOf (Program prog) = Program (runNS (mapM renameSC prog) ns)
   where ns = mkNameSupply (S.fromList [name | (Supercomb name _ _) <- prog])
         renameSC (Supercomb name args body) = do
-          (env, args') <- renameArgs M.empty args
+          (env, args') <- renameArgs (RenameEnv M.empty nameOf) args
           body' <- renameExpr env body
           return (Supercomb name args' body')
 
-type RenameEnv = M.Map Name Name
+data RenameEnv f = RenameEnv
+  { subst :: M.Map Name Name
+  , nameOf :: f Name -> Name }
 
-renameArgs :: RenameEnv -> [Name] -> NS (RenameEnv, [Name])
-renameArgs env args = do
-  args' <- mapM (const newName) args
-  let env' = extend env (zip args args')
+renameArgs :: Functor f => RenameEnv f -> [f Name] -> NS (RenameEnv f, [f Name])
+renameArgs env@(RenameEnv {..}) args = do
+  let names = map nameOf args
+  names' <- mapM (const newName) names
+  let env' = env { subst = extend subst (zip names names') }
+      args' = map (\(arg, name) -> fmap (const name) arg) (zip args names')
   return (env', args')
 
-renameExpr :: RenameEnv -> Expr Name -> NS (Expr Name)
-renameExpr env e = case e of
-  EVar v -> return (EVar (M.findWithDefault v v env))
+renameExpr :: Functor f => RenameEnv f -> Expr (f Name) -> NS (Expr (f Name))
+renameExpr env@(RenameEnv {..}) e = case e of
+  EVar v -> return (EVar (M.findWithDefault v v subst))
   ENum _ -> return e
   EConstr _ _ -> return e
   EAp e1 e2 -> do
@@ -63,7 +74,7 @@ renameExpr env e = case e of
     body' <- renameExpr env' body
     return (EAbs args' body')
 
-renameAlter :: RenameEnv -> Alter Name -> NS (Alter Name)
+renameAlter :: Functor f => RenameEnv f -> Alter (f Name) -> NS (Alter (f Name))
 renameAlter env (Alter tag xs body) = do
   (env', xs') <- renameArgs env xs
   body' <- renameExpr env' body

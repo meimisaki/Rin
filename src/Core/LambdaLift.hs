@@ -74,4 +74,4 @@ collectAlter (Alter tag xs body) = (scDefs, Alter tag xs body')
 
 -- TODO: eta-abstraction optimize, merge directly nested lambdas
 lambdaLift :: Program Name -> Program Name
-lambdaLift = collect . rename . abstract . freeVars
+lambdaLift = collect . rename_ . abstract . freeVars
