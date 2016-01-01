@@ -13,6 +13,8 @@ module Core.AnnotAST
 , toExpr
 , toAlter
 , Annot (..)
+, getAnnot
+, unAnnot
 , AnnotExpr
 , removeAnnot
 , AnnotAlter
@@ -68,13 +70,19 @@ toExpr f e = case f e of
 toAlter :: (ExprF f a -> ExprF' f a) -> AlterF f a -> Alter a
 toAlter f (AlterF tag xs body) = Alter tag xs (toExpr f body)
 
-newtype Annot a b = Annot { unAnnot :: (a, b) }
+newtype Annot a b = Annot { runAnnot :: (a, b) }
   deriving (Show, Functor)
+
+getAnnot :: Annot a b -> a
+getAnnot = fst . runAnnot
+
+unAnnot :: Annot a b -> b
+unAnnot = snd . runAnnot
 
 type AnnotExpr a b = ExprF (Annot a) b
 
 removeAnnot :: AnnotExpr a b -> Expr b
-removeAnnot = toExpr (snd . unAnnot)
+removeAnnot = toExpr unAnnot
 
 type AnnotAlter a b = AlterF (Annot a) b
 

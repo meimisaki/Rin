@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Core.Renamer
+module Core.Rename
 ( rename
 , rename_
 ) where

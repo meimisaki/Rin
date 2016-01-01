@@ -5,7 +5,7 @@ module Core
 , module Core.LambdaLift
 , module Core.Prelude
 , module Core.PrettyPrint
-, module Core.Renamer
+, module Core.Rename
 ) where
 
 import Core.AST
@@ -14,4 +14,4 @@ import Core.FreeVars
 import Core.LambdaLift
 import Core.Prelude
 import Core.PrettyPrint
-import Core.Renamer
+import Core.Rename

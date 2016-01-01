@@ -9,7 +9,7 @@ import Common
 import Core.AST
 import Core.AnnotAST
 import Core.FreeVars
-import Core.Renamer
+import Core.Rename
 import Data.List
 import qualified Data.Set as S
 
