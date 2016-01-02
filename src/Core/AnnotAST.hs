@@ -11,7 +11,6 @@ module Core.AnnotAST
 , SupercombF (..)
 , ProgramF (..)
 , toExpr
-, toAlter
 , Annot (..)
 , getAnnot
 , unAnnot
