@@ -25,7 +25,7 @@ collectExpr e = case e of
     where (scDefs1, e1') = collectExpr e1
           (scDefs2, e2') = collectExpr e2
   ELet rec defs body -> (defsSC ++ bodySC ++ scDefs, mkLet rec defs' body')
-    where (defsSC, exps') = merge (map collectExpr exps)
+    where (defsSC, exps') = accum (map collectExpr exps)
           (bodySC, body') = collectExpr body
           (lambdas, defs') = partition (isAbs . snd) (zip xs exps')
           scDefs = [Supercomb name args body | (name, EAbs args body) <- lambdas]
@@ -35,10 +35,9 @@ collectExpr e = case e of
           isAbs _ = False
   ECase e alts -> (scDefs ++ altsSC, ECase e' alts')
     where (scDefs, e') = collectExpr e
-          (altsSC, alts') = merge (map collectAlter alts)
+          (altsSC, alts') = accum (map collectAlter alts)
   EAbs args body -> (scDefs, EAbs args body')
     where (scDefs, body') = collectExpr body
-  where merge xs = (concatMap fst xs, map snd xs)
 
 collectAlter :: Alter Name -> ([Supercomb Name], Alter Name)
 collectAlter (Alter tag xs body) = (scDefs, Alter tag xs body')
