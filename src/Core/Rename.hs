@@ -16,8 +16,8 @@ import qualified Data.Set as S
 
 type NS = State NameSupply
 
-runNS :: NS a -> NameSupply -> a
-runNS state ns = fst (runState state ns)
+evalNS :: NS a -> NameSupply -> a
+evalNS = evalState
 
 newName :: NS Name
 newName = do
@@ -30,7 +30,7 @@ rename_ :: Program Name -> Program Name
 rename_ = fmap runIdentity . rename runIdentity . fmap Identity
 
 rename :: Functor f => (f Name -> Name) -> Program (f Name) -> Program (f Name)
-rename nameOf (Program prog) = Program (runNS (mapM renameSC prog) ns)
+rename nameOf (Program prog) = Program (evalNS (mapM renameSC prog) ns)
   where ns = mkNameSupply (S.fromList [name | (Supercomb name _ _) <- prog])
         renameSC (Supercomb name args body) = do
           (env, args') <- renameArgs (RenameEnv M.empty nameOf) args
