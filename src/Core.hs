@@ -1,6 +1,7 @@
 module Core
 ( module Core.AST
 , module Core.AnnotAST
+, module Core.Dependency
 , module Core.FreeVars
 , module Core.LambdaLift
 , module Core.Prelude
@@ -10,6 +11,7 @@ module Core
 
 import Core.AST
 import Core.AnnotAST
+import Core.Dependency
 import Core.FreeVars
 import Core.LambdaLift
 import Core.Prelude
