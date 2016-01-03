@@ -6,6 +6,7 @@ import Common
 
 import Core.AST
 import Core.AnnotAST
+import Core.Prelude
 
 identifyMFE :: AnnotProgram Int (Annot Int Name) -> Program (Annot Int Name)
 identifyMFE = Program . map identifySC . getProgramF
@@ -16,14 +17,19 @@ transformMFE :: Int -> Expr (Annot Int Name) -> Expr (Annot Int Name)
 transformMFE k e = ELet False [(Annot (k, anonym), e)] (EVar anonym)
   where anonym = ""
 
+-- check whether a redex
+notCandidate :: Expr (Annot Int Name) -> Bool
+notCandidate e = case e of
+  EVar _ -> True
+  ENum _ -> True
+  EConstr _ _ -> True
+  EAp (EVar v) _ -> elem v operators
+  _ -> False
+
 identifyExpr :: Int -> AnnotExpr Int (Annot Int Name) -> Expr (Annot Int Name)
-identifyExpr cxt a@(Annot (k, e)) = if cxt == k
-  then e'
-  else case e of
-    EVarF _ -> e'
-    ENumF _ -> e'
-    EConstrF _ _ -> e'
-    _ -> transformMFE k e'
+identifyExpr cxt a@(Annot (k, e))
+  | cxt == k || notCandidate e' = e'
+  | otherwise = transformMFE k e'
   where e' = identifyExpr1 a
 
 identifyExpr1 :: AnnotExpr Int (Annot Int Name) -> Expr (Annot Int Name)

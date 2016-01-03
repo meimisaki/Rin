@@ -7,6 +7,7 @@ import Common
 import Core.AST
 import Core.AnnotAST
 import Core.FreeVars
+import Core.Prelude
 import qualified Data.Map as M
 import qualified Data.Set as S
 
@@ -20,9 +21,14 @@ deBruijnExpr k env (Annot (fv, e)) = Annot $ case e of
   EVarF v -> (M.findWithDefault 0 v env, EVarF v)
   ENumF n -> (0, ENumF n)
   EConstrF tag arity -> (0, EConstrF tag arity)
-  EApF e1 e2 -> (max (getAnnot e1') (getAnnot e2'), EApF e1' e2')
+  EApF e1 e2 -> (,) k' $ case removeAnnot e1 of
+    EAp (EVar v) _ -> if elem v operators
+      then EApF (Annot (k', unAnnot e1')) e2'
+      else EApF e1' e2'
+    _ -> EApF e1' e2'
     where e1' = deBruijnExpr k env e1
           e2' = deBruijnExpr k env e2
+          k' = max (getAnnot e1') (getAnnot e2')
   ELetF rec defs body -> (getAnnot body', ELetF rec defs' body')
     where xs' = map (Annot . (,) k') xs
           exps' = map (deBruijnExpr k (if rec then env' else env)) exps
@@ -38,10 +44,10 @@ deBruijnExpr k env (Annot (fv, e)) = Annot $ case e of
           alts' = map (deBruijnAlter k k' env) alts
           k' = getAnnot e'
           k'' = foldr max k' [getAnnot body | AlterF _ _ body <- alts']
-  EAbsF [arg] body -> (deBruijnFreeVars env fv, EAbsF [arg'] body')
-    where arg' = Annot (k', arg)
+  EAbsF args body -> (deBruijnFreeVars env fv, EAbsF args' body')
+    where args' = map (Annot . (,) k') args
           body' = deBruijnExpr k' env' body
-          env' = M.insert arg k' env
+          env' = extend env (zip args (repeat k'))
           k' = k + 1
 
 deBruijnAlter :: Int -> Int -> M.Map Name Int -> AnnotAlter (S.Set Name) Name -> AnnotAlter Int (Annot Int Name)

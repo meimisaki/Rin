@@ -47,8 +47,6 @@ pprintExpr e = case e of
   EAp e1 e2 -> sep [doc1, doc2]
     where doc1 = parens' (isAtomic e1 || isAp e1) (pprintExpr e1)
           doc2 = parens' (isAtomic e2) (pprintExpr e2)
-          isAp (EAp _ _) = True
-          isAp _ = False
   ELet rec defs body -> sep
     [ text (if rec then "letrec" else "let")
     , indent (vcat (map pprintDef defs))

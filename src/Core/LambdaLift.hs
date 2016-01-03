@@ -18,6 +18,5 @@ import Core.Rename
 fullyLazy :: Program Name -> Program Name
 fullyLazy = float . rename unAnnot . identifyMFE . deBruijn . separate
 
--- TODO: eta-abstraction optimize, merge directly nested lambdas
 lambdaLift :: Program Name -> Program Name
 lambdaLift = collect . rename_ . N.abstract . freeVars . fullyLazy

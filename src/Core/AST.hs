@@ -4,6 +4,8 @@
 module Core.AST
 ( Expr (..)
 , isAtomic
+, isAp
+, isAbs
 , Alter (..)
 , Supercomb (..)
 , Program (..)
@@ -26,6 +28,14 @@ isAtomic e = case e of
   EVar _ -> True
   ENum _ -> True
   _ -> False
+
+isAp :: Expr a -> Bool
+isAp (EAp _ _) = True
+isAp _ = False
+
+isAbs :: Expr a -> Bool
+isAbs (EAbs _ _) = True
+isAbs _ = False
 
 data Alter a = Alter Int [a] (Expr a)
   deriving (Show, Functor)

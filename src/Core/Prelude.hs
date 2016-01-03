@@ -1,10 +1,14 @@
 module Core.Prelude
-( preludeDefs
+( operators
+, preludeDefs
 ) where
 
 import Common
 
 import Core.AST
+
+operators :: [Name]
+operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]
 
 preludeDefs :: Program Name
 preludeDefs = Program

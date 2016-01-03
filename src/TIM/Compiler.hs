@@ -53,10 +53,7 @@ allocateInitialHeap compiledCode = (heap, globalFramePtr)
           then (PushMarker offset:instrs, globalFramePtr)
           else (instrs, globalFramePtr)
 
-operators :: [String]
-operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]
-
-mkOp :: String -> Op
+mkOp :: Name -> Op
 mkOp op = case op of
   "+" -> Add
   "-" -> Sub

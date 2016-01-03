@@ -8,9 +8,14 @@ import Core.AST
 import Data.List
 
 collect :: Program Name -> Program Name
-collect = Program . concatMap collectSC . getProgram
+collect = Program . concatMap (collectSC . elim) . getProgram
   where collectSC (Supercomb name args body) = Supercomb name args body':scDefs
           where (scDefs, body') = collectExpr body
+        -- eliminate redundant supercombinators
+        elim sc@(Supercomb name args1 (ELet _ [(x, EAbs args2 body)] (EVar v)))
+          | x == v = Supercomb name (args1 ++ args2) body
+          | otherwise = sc
+        elim sc = sc
 
 mkLet :: Bool -> [(a, Expr a)] -> Expr a -> Expr a
 mkLet _ [] body = body
@@ -31,8 +36,6 @@ collectExpr e = case e of
           scDefs = [Supercomb name args body | (name, EAbs args body) <- lambdas]
           xs = map fst defs
           exps = map snd defs
-          isAbs (EAbs _ _) = True
-          isAbs _ = False
   ECase e alts -> (scDefs ++ altsSC, ECase e' alts')
     where (scDefs, e') = collectExpr e
           (altsSC, alts') = accum (map collectAlter alts)

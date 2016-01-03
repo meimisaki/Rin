@@ -16,6 +16,11 @@ float = Program . concatMap floatSC . getProgram
 
 type Floated = [(Int, Bool, [(Name, Expr Name)])]
 
+-- combine directly nested lambdas
+mkAbs :: [Name] -> Expr Name -> Expr Name
+mkAbs args1 (EAbs args2 body) = EAbs (args1 ++ args2) body
+mkAbs args body = EAbs args body
+
 floatExpr :: Expr (Annot Int Name) -> (Floated, Expr Name)
 floatExpr e = case e of
   EVar v -> ([], EVar v)
@@ -33,7 +38,7 @@ floatExpr e = case e of
   ECase e alts -> (fd ++ altsFD, ECase e' alts')
     where (fd, e') = floatExpr e
           (altsFD, alts') = accum (map floatAlter alts)
-  EAbs args body -> (outer, EAbs args' (install inner body'))
+  EAbs args body -> (outer, mkAbs args' (install inner body'))
     where args' = map unAnnot args
           (fd, body') = floatExpr body
           (outer, inner) = partitionFD k fd
