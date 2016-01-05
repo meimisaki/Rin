@@ -1,6 +1,8 @@
 module Core.LambdaLift
-( lambdaLift
+( fullyLazy
+, lambdaLift
 , lambdaLiftJ
+, lambdaLiftJ_
 ) where
 
 import Common
@@ -21,11 +23,11 @@ import qualified Data.Set as S
 fullyLazy :: Program Name -> Program Name
 fullyLazy = float . rename unAnnot . identifyMFE . deBruijn . separate
 
-mkLifter :: (AnnotProgram (S.Set Name) Name -> Program Name) -> Program Name -> Program Name
-mkLifter abstract = collect . rename_ . abstract . freeVars . fullyLazy
-
 lambdaLift :: Program Name -> Program Name
-lambdaLift = mkLifter N.abstract
+lambdaLift = collect . rename_ . N.abstract . freeVars
 
 lambdaLiftJ :: Program Name -> Program Name
-lambdaLiftJ = mkLifter J.abstract
+lambdaLiftJ = lambdaLiftJ_ . rename_
+
+lambdaLiftJ_ :: Program Name -> Program Name
+lambdaLiftJ_ = collect . rename_ . J.abstract . freeVars

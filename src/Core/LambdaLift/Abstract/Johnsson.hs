@@ -29,6 +29,7 @@ abstractExpr env a@(Annot (fv, e)) = case e of
   ENumF n -> ENum n
   EConstrF tag arity -> EConstr tag arity
   EApF e1 e2 -> EAp (abstractExpr env e1) (abstractExpr env e2)
+  -- TODO: eliminate unused arguments
   ELetF rec defs body -> ELet rec (lambdas' ++ vars') body'
     where (lambdas, vars) = partition (isAbs . removeAnnot . snd) defs
           lambdas' = zip xs (map (mkAbs env'' fv') exps)
@@ -44,7 +45,6 @@ abstractExpr env a@(Annot (fv, e)) = case e of
   EAbsF args body -> foldl EAp e' (map EVar fv')
     where e' = ELet False [(anonym, mkAbs env fv' a)] (EVar anonym)
           fv' = abstractFreeVars env fv
-          anonym = ""
 
 abstractAlter :: AbsEnv -> AnnotAlter (S.Set Name) Name -> Alter Name
 abstractAlter env (AlterF tag xs body) = Alter tag xs (abstractExpr env body)

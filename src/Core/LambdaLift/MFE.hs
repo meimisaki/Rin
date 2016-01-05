@@ -15,7 +15,6 @@ identifyMFE = Program . map identifySC . getProgramF
 
 transformMFE :: Int -> Expr (Annot Int Name) -> Expr (Annot Int Name)
 transformMFE k e = ELet False [(Annot (k, anonym), e)] (EVar anonym)
-  where anonym = ""
 
 -- check whether a redex
 notCandidate :: Expr (Annot Int Name) -> Bool

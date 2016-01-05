@@ -27,7 +27,6 @@ abstractExpr (Annot (S.toList -> fv, e)) = case e of
   EAbsF args body -> foldl EAp e' (map EVar fv)
     where e' = ELet False [(anonym, EAbs (fv ++ args) body')] (EVar anonym)
           body' = abstractExpr body
-          anonym = ""
 
 abstractAlter :: AnnotAlter (S.Set Name) Name -> Alter Name
 abstractAlter (AlterF tag xs body) = Alter tag xs (abstractExpr body)

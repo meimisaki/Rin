@@ -4,6 +4,9 @@ import qualified Data.Map as M
 
 type Name = String
 
+anonym :: Name
+anonym = ""
+
 extend :: (Ord k, Foldable t) => M.Map k v -> t (k, v) -> M.Map k v
 extend = foldr (uncurry M.insert)
 

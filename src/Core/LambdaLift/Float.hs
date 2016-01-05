@@ -29,9 +29,11 @@ floatExpr e = case e of
   EAp e1 e2 -> (fd1 ++ fd2, EAp e1' e2')
     where (fd1, e1') = floatExpr e1
           (fd2, e2') = floatExpr e2
-  ELet rec defs body -> (defsFD ++ (k, rec, defs'):bodyFD, body')
+  ELet rec defs body -> (outer ++ this:bodyFD, body')
     where (defsFD, defs') = mapAccumR go [] defs
           (bodyFD, body') = floatExpr body
+          (outer, inner) = partitionFD (if rec then k else maxBound) defsFD
+          this = (k, rec, defs' ++ concatMap (\(_, _, defs) -> defs) inner)
           k = getAnnot (fst (head defs))
           go fd (x, e) = (fd' ++ fd, (unAnnot x, e'))
             where (fd', e') = floatExpr e
