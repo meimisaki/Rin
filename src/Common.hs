@@ -1,6 +1,7 @@
 module Common where
 
 import qualified Data.Map as M
+import Text.PrettyPrint
 
 type Name = String
 
@@ -12,3 +13,6 @@ extend = foldr (uncurry M.insert)
 
 accum :: (Monoid a, Functor t, Foldable t) => t (a, b) -> (a, t b)
 accum xs = (foldr mappend mempty (fmap fst xs), fmap snd xs)
+
+class Pretty a where
+  pprint :: a -> Doc
