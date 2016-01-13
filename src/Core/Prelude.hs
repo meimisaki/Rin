@@ -1,11 +1,17 @@
 module Core.Prelude
-( operators
+( isArith
+, operators
 , preludeDefs
 ) where
 
 import Common
 
 import Core.AST
+
+isArith :: Expr Name -> Bool
+isArith (ENum _) = True
+isArith (EAp (EAp (EVar v) _) _) = elem v operators
+isArith _ = False
 
 operators :: [Name]
 operators = ["+", "-", "*", "/", ">", ">=", "<", "<=", "==", "/="]

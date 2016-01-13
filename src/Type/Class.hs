@@ -9,7 +9,7 @@ import Type.Types
 class Type a where
   zonk :: a -> TI a
   skolemise :: a -> TI ([TyVar], Rho)
-  subst :: Subst -> a -> a
+  subst :: M.Map TyVar Tau -> a -> a
   subst_ :: [TyVar] -> [Tau] -> a -> a
   metaTyVars :: a -> S.Set TyMeta
   freeTyVars :: a -> S.Set TyVar

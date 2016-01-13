@@ -144,11 +144,6 @@ mkEnter am = [Enter am]
 mkIndMode :: Int -> AddrMode
 mkIndMode n = Code [Enter (Arg n)]
 
-isArith :: Expr Name -> Bool
-isArith (ENum _) = True
-isArith (EAp (EAp (EVar v) _) _) = elem v operators
-isArith _ = False
-
 compileA :: Expr Name -> CompEnv -> AddrMode
 compileA (EVar v) env = env M.! v
 compileA (ENum n) _ = Const n

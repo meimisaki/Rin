@@ -26,7 +26,6 @@ module Type.Types
 , readTyMeta
 , writeTyMeta
 , TyRef
-, Subst
 ) where
 
 import Common
@@ -67,9 +66,7 @@ extendEnv :: Name -> Sigma -> TI a -> TI a
 extendEnv name sigma ti = do
   env <- get
   put (M.insert name sigma env)
-  ret <- ti
-  put env
-  return ret
+  ti <* put env
 
 lookupVar :: Name -> TI Sigma
 lookupVar name = do
@@ -152,5 +149,3 @@ writeTyMeta :: TyMeta -> Tau -> TI ()
 writeTyMeta (Meta _ ref) = writeTIRef ref . Just
 
 type TyRef = IORef (Maybe Tau)
-
-type Subst = M.Map TyVar Tau

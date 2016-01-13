@@ -21,11 +21,9 @@ deBruijnExpr k env (Annot (fv, e)) = Annot $ case e of
   EVarF v -> (M.findWithDefault 0 v env, EVarF v)
   ENumF n -> (0, ENumF n)
   EConstrF tag arity -> (0, EConstrF tag arity)
-  EApF e1 e2 -> (,) k' $ case removeAnnot e1 of
-    EAp (EVar v) _ -> if elem v operators
-      then EApF (Annot (k', unAnnot e1')) e2'
-      else EApF e1' e2'
-    _ -> EApF e1' e2'
+  EApF e1 e2 -> (,) k' $ if isArith (EAp (removeAnnot e1) (removeAnnot e2))
+    then EApF (Annot (k', unAnnot e1')) e2'
+    else EApF e1' e2'
     where e1' = deBruijnExpr k env e1
           e2' = deBruijnExpr k env e2
           k' = max (getAnnot e1') (getAnnot e2')
