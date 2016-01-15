@@ -40,6 +40,7 @@ data Instr
   | Cond [Instr] [Instr]
   | Switch (M.Map Int [Instr])
   deriving Show
+-- TODO: remove `Cond` instruction in favor of `Switch`
 
 data AddrMode
   = Arg Int

@@ -1,18 +1,26 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Type.Types
 ( Term (..)
 , module Control.Monad.Except
 , module Control.Monad.State
 , TI
 , runTI
+, throwTI
 , newTIRef
 , readTIRef
 , writeTIRef
-, TIEnv
-, extendEnv
-, lookupVar
+, TIEnv (..)
+, extendTyEnv
+, lookupTyEnv
+, extendKnEnv
+, lookupKnEnv
+, Kind (..)
+, newKnVar
 , Sigma (..)
 , Rho (..)
 , Tau (..)
+, pattern TyArr0
 , sigmaToRho
 , rhoToSigma
 , tauToSigma
@@ -21,11 +29,12 @@ module Type.Types
 , isBound
 , getTyVarName
 , newSkolemTyVar
-, TyMeta (..)
-, newMetaTyVar
-, readTyMeta
-, writeTyMeta
-, TyRef
+, TyMeta
+, KnMeta
+, MetaVar (..)
+, newMeta
+, readMeta
+, writeMeta
 ) where
 
 import Common
@@ -51,6 +60,9 @@ type TI a = ExceptT String (StateT TIEnv IO) a
 runTI :: TI a -> TIEnv -> IO (Either String a, TIEnv)
 runTI = runStateT . runExceptT
 
+throwTI :: Show a => a -> TI b
+throwTI = throwError . show
+
 newTIRef :: a -> TI (IORef a)
 newTIRef = liftIO . newIORef
 
@@ -60,20 +72,44 @@ readTIRef = liftIO . readIORef
 writeTIRef :: IORef a -> a -> TI ()
 writeTIRef ref = liftIO . writeIORef ref
 
-type TIEnv = M.Map Name Sigma
+data TIEnv = TIEnv
+  { tyEnv :: M.Map Name Sigma
+  , knEnv :: M.Map Name Kind }
 
-extendEnv :: Name -> Sigma -> TI a -> TI a
-extendEnv name sigma ti = do
+extendTyEnv :: Name -> Sigma -> TI a -> TI a
+extendTyEnv name sigma ti = do
   env <- get
-  put (M.insert name sigma env)
+  put env { tyEnv = M.insert name sigma (tyEnv env) }
   ti <* put env
 
-lookupVar :: Name -> TI Sigma
-lookupVar name = do
-  env <- get
+lookupTyEnv :: Name -> TI Sigma
+lookupTyEnv name = do
+  env <- gets tyEnv
   case M.lookup name env of
-    Nothing -> throwError ("Not in scope: " ++ name)
+    Nothing -> throwError ("Variable not in scope: " ++ name)
     Just sigma -> return sigma
+
+extendKnEnv :: Name -> Kind -> TI a -> TI a
+extendKnEnv name kind ti = do
+  env <- get
+  put env { knEnv = M.insert name kind (knEnv env) }
+  ti <* put env
+
+lookupKnEnv :: Name -> TI Kind
+lookupKnEnv name = do
+  env <- gets knEnv
+  case M.lookup name env of
+    Nothing -> throwError ("Type variable not in scope: " ++ name)
+    Just kind -> return kind
+
+-- maybe we should merge `Kind`, `Sigma`, `Rho`, and `Tau` :)
+data Kind
+  = KnStar
+  | KnArr Kind Kind
+  | KnMeta KnMeta
+
+newKnVar :: TI Kind
+newKnVar = fmap KnMeta newMeta
 
 data Sigma = TyForall [TyVar] Rho
 
@@ -81,12 +117,13 @@ data Rho
   = TyMono Tau
   | TyArr Sigma Sigma
 
--- TODO: higher-kinded types
 data Tau
   = TyCon Name
   | TyVar TyVar
-  | TyArr0 Tau Tau
+  | TyAp Tau Tau -- predicativity
   | TyMeta TyMeta
+
+pattern TyArr0 a b = TyAp (TyAp (TyCon "->") a) b
 
 sigmaToRho :: Sigma -> Rho
 sigmaToRho (TyForall [] rho) = rho
@@ -98,7 +135,7 @@ tauToSigma :: Tau -> Sigma
 tauToSigma = rhoToSigma . TyMono
 
 newTyVar :: TI Tau
-newTyVar = fmap TyMeta newMetaTyVar
+newTyVar = fmap TyMeta newMeta
 
 data TyVar
   = Bound Name
@@ -128,24 +165,26 @@ newSkolemTyVar tv = do
   uniq <- liftIO newUnique
   return (Skolem (getTyVarName tv) uniq)
 
-data TyMeta = Meta Unique TyRef
+type TyMeta = MetaVar Tau -- predicativity
 
-instance Eq TyMeta where
-  Meta u1 _ == Meta u2 _ = u1 == u2
+type KnMeta = MetaVar Kind
 
-instance Ord TyMeta where
-  Meta u1 _ `compare` Meta u2 _ = u1 `compare` u2
+data MetaVar a = MetaVar Unique (IORef (Maybe a))
 
-newMetaTyVar :: TI TyMeta
-newMetaTyVar = do
+instance Eq (MetaVar a) where
+  MetaVar u1 _ == MetaVar u2 _ = u1 == u2
+
+instance Ord (MetaVar a) where
+  MetaVar u1 _ `compare` MetaVar u2 _ = u1 `compare` u2
+
+newMeta :: TI (MetaVar a)
+newMeta = do
   uniq <- liftIO newUnique
   ref <- newTIRef Nothing
-  return (Meta uniq ref)
+  return (MetaVar uniq ref)
 
-readTyMeta :: TyMeta -> TI (Maybe Tau)
-readTyMeta (Meta _ ref) = readTIRef ref
+readMeta :: (MetaVar a) -> TI (Maybe a)
+readMeta (MetaVar _ ref) = readTIRef ref
 
-writeTyMeta :: TyMeta -> Tau -> TI ()
-writeTyMeta (Meta _ ref) = writeTIRef ref . Just
-
-type TyRef = IORef (Maybe Tau)
+writeMeta :: (MetaVar a) -> a -> TI ()
+writeMeta (MetaVar _ ref) = writeTIRef ref . Just

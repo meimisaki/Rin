@@ -8,6 +8,9 @@ import Data.Unique
 import Text.PrettyPrint
 import Type.Types
 
+instance Show Kind where
+  show = show . pprint
+
 instance Show Sigma where
   show = show . pprint
 
@@ -20,14 +23,25 @@ instance Show Tau where
 instance Show TyVar where
   show = getTyVarName
 
-instance Show TyMeta where
-  show (Meta uniq _) = show (hashUnique uniq)
+instance Show (MetaVar a) where
+  show (MetaVar uniq _) = show (hashUnique uniq)
 
 instance Pretty TyVar where
   pprint = text . show
 
-instance Pretty TyMeta where
+instance Pretty (MetaVar a) where
   pprint = text . show
+
+instance Pretty Kind where
+  pprint KnStar = char '*'
+  pprint (KnArr kind1 kind2) = hsep
+    [ parens' (pprint kind1)
+    , text "->"
+    , pprint kind2 ]
+    where parens' = case kind1 of
+            KnArr _ _ -> parens
+            _ -> id
+  pprint (KnMeta kv) = text (show kv)
 
 instance Pretty Sigma where
   pprint (TyForall [] rho) = pprint rho
@@ -57,5 +71,11 @@ instance Pretty Tau where
     , pprint tau2 ]
     where parens' = case tau1 of
             TyArr0 _ _ -> parens
+            _ -> id
+  pprint (TyAp tau1 tau2) = hsep
+    [ pprint tau1
+    , parens' (pprint tau2) ]
+    where parens' = case tau2 of
+            TyAp _ _ -> parens
             _ -> id
   pprint (TyMeta tv) = text (show tv)
