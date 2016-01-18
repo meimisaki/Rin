@@ -1,37 +1,9 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 module Type.Types
-( Term (..)
+( module Type.Types
 , module Control.Monad.Except
 , module Control.Monad.State
-, TI
-, runTI
-, throwTI
-, newTIRef
-, readTIRef
-, writeTIRef
-, TIEnv (..)
-, extendTyEnv
-, lookupTyEnv
-, extendKnEnv
-, lookupKnEnv
-, Type (..)
-, mkForall
-, Sigma (..)
-, Rho (..)
-, Tau (..)
-, Kind
-, pattern KnStar
-, newTyVar
-, TyVar (..)
-, isBound
-, getTyVarName
-, newSkolemTyVar
-, TyMeta
-, Meta (..)
-, newMeta
-, readMeta
-, writeMeta
 ) where
 
 import Common

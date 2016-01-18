@@ -1,15 +1,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
-module Core.AST
-( Expr (..)
-, isAtomic
-, isAp
-, isAbs
-, Alter (..)
-, Supercomb (..)
-, Program (..)
-) where
+module Core.AST where
 
 import Common
 

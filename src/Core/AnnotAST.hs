@@ -4,22 +4,7 @@
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Core.AnnotAST
-( ExprF
-, ExprF' (..)
-, AlterF (..)
-, SupercombF (..)
-, ProgramF (..)
-, toExpr
-, Annot (..)
-, getAnnot
-, unAnnot
-, AnnotExpr
-, removeAnnot
-, AnnotAlter
-, AnnotSupercomb
-, AnnotProgram
-) where
+module Core.AnnotAST where
 
 import Common
 

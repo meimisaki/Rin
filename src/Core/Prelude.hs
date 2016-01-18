@@ -1,8 +1,4 @@
-module Core.Prelude
-( isArith
-, operators
-, preludeDefs
-) where
+module Core.Prelude where
 
 import Common
 

@@ -1,23 +1,4 @@
-module TIM.Types
-( Instr (..)
-, AddrMode (..)
-, ValueAddrMode (..)
-, Op (..)
-, TIM (..)
-, FramePtr (..)
-, Stack
-, Closure
-, Frame
-, allocFrame
-, getFrame
-, updateFrame
-, ValueStack
-, Dump
-, CodeStore
-, Stats (..)
-, initialStats
-, incTickCount
-) where
+module TIM.Types where
 
 import Prelude hiding (lookup)
 
