@@ -8,74 +8,45 @@ import Data.Unique
 import Text.PrettyPrint
 import Type.Types
 
-instance Show Kind where
-  show = show . pprint
-
-instance Show Sigma where
-  show = show . pprint
-
-instance Show Rho where
-  show = show . pprint
-
-instance Show Tau where
+instance Show Type where
   show = show . pprint
 
 instance Show TyVar where
   show = getTyVarName
 
-instance Show (MetaVar a) where
-  show (MetaVar uniq _) = show (hashUnique uniq)
+instance Show (Meta a) where
+  show (Meta uniq _) = show (hashUnique uniq)
 
 instance Pretty TyVar where
   pprint = text . show
 
-instance Pretty (MetaVar a) where
+instance Pretty (Meta a) where
   pprint = text . show
 
-instance Pretty Kind where
-  pprint KnStar = char '*'
-  pprint (KnArr kind1 kind2) = hsep
-    [ parens' (pprint kind1)
-    , text "->"
-    , pprint kind2 ]
-    where parens' = case kind1 of
-            KnArr _ _ -> parens
-            _ -> id
-  pprint (KnMeta kv) = text (show kv)
+precedence :: Type -> Int
+precedence ty = case ty of
+  TyForall _ _ -> 0
+  TyArr _ _ -> 1
+  TyAp _ _ -> 2
+  _ -> 3 -- atomic
 
-instance Pretty Sigma where
-  pprint (TyForall [] rho) = pprint rho
-  pprint (TyForall tvs rho) = hsep
-    [ text "forall"
-    , hsep (map (text . show) tvs) <> char '.'
-    , pprint rho ]
-
-instance Pretty Rho where
-  pprint (TyMono tau) = pprint tau
-  pprint (TyArr sigma1 sigma2) = hsep
-    [ parens' (pprint sigma1)
-    , text "->"
-    , pprint sigma2 ]
-    where (TyForall _ rho) = sigma1
-          parens' = case rho of
-            TyMono (TyArr0 _ _) -> parens
-            TyArr _ _ -> parens
-            _ -> id
-
-instance Pretty Tau where
-  pprint (TyCon tc) = text tc
-  pprint (TyVar tv) = text (show tv)
-  pprint (TyArr0 tau1 tau2) = hsep
-    [ parens' (pprint tau1)
-    , text "->"
-    , pprint tau2 ]
-    where parens' = case tau1 of
-            TyArr0 _ _ -> parens
-            _ -> id
-  pprint (TyAp tau1 tau2) = hsep
-    [ pprint tau1
-    , parens' (pprint tau2) ]
-    where parens' = case tau2 of
-            TyAp _ _ -> parens
-            _ -> id
-  pprint (TyMeta tv) = text (show tv)
+instance Pretty Type where
+  pprint = go minBound
+    where go pr ty
+            | pr >= pr' = parens (go' pr' ty)
+            | otherwise = go' pr' ty
+            where pr' = precedence ty
+          go' pr ty = case ty of
+            TyForall [] rho -> pprint rho
+            TyForall tvs rho -> sep
+              [ text "forall" <+> hsep (map pprint tvs) <> char '.'
+              , pprint rho ]
+            TyArr sigma1 sigma2 -> sep
+              [ go pr sigma1 <+> text "->"
+              , go (pr - 1) sigma2 ]
+            TyCon tc -> text tc
+            TyVar tv -> pprint tv
+            TyAp tau1 tau2 -> sep
+              [ go (pr - 1) tau1
+              , go pr tau2 ]
+            TyMeta tv -> pprint tv

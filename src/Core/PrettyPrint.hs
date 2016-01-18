@@ -21,19 +21,13 @@ instance {-# OVERLAPS #-} Show (Supercomb Name) where
 instance {-# OVERLAPS #-} Show (Program Name) where
   show = show . pprint
 
-tab :: Int
-tab = 2
-
-indent :: Doc -> Doc
-indent = nest tab
-
 instance Pretty (Program Name) where
   pprint = vcat . map pprint . getProgram
 
 instance Pretty (Supercomb Name) where
   pprint (Supercomb name args body) = sep
     [ text name <+> hsep (map text args) <+> equals
-    , indent (pprint body) ]
+    , tab (pprint body) ]
 
 instance Pretty (Expr Name) where
   pprint e = case e of
@@ -47,17 +41,17 @@ instance Pretty (Expr Name) where
             parens' True = id
     ELet rec defs body -> sep
       [ text (if rec then "letrec" else "let")
-      , indent (vcat (map pprintDef defs))
+      , tab (vcat (map pprintDef defs))
       , text "in" <+> pprint body ]
-      where pprintDef (x, e) = sep [text x <+> equals, indent (pprint e)]
+      where pprintDef (x, e) = sep [text x <+> equals, tab (pprint e)]
     ECase e alts -> sep
       [ text "case" <+> pprint e <+> text "of"
-      , indent (vcat (map pprint alts)) ]
+      , tab (vcat (map pprint alts)) ]
     EAbs args body -> sep
       [ char '\\' <> hsep (map text args) <+> text "->"
-      , indent (pprint body) ]
+      , tab (pprint body) ]
 
 instance Pretty (Alter Name) where
   pprint (Alter tag xs body) = sep
     [ char '<' <> int tag <> char '>' <+> hsep (map text xs) <+> text "->"
-    , indent (pprint body) ]
+    , tab (pprint body) ]

@@ -15,23 +15,20 @@ module Type.Types
 , lookupTyEnv
 , extendKnEnv
 , lookupKnEnv
-, Kind (..)
-, newKnVar
+, Type (..)
+, mkForall
 , Sigma (..)
 , Rho (..)
 , Tau (..)
-, pattern TyArr0
-, sigmaToRho
-, rhoToSigma
-, tauToSigma
+, Kind
+, pattern KnStar
 , newTyVar
 , TyVar (..)
 , isBound
 , getTyVarName
 , newSkolemTyVar
 , TyMeta
-, KnMeta
-, MetaVar (..)
+, Meta (..)
 , newMeta
 , readMeta
 , writeMeta
@@ -51,9 +48,9 @@ data Term
   | TmLit Int
   | TmAp Term Term
   | TmAbs Name Term
-  | TmAnnotAbs Name Sigma Term
+  | TmAnnotAbs Name Type Term
   | TmLet Name Term Term
-  | TmAnnot Term Sigma
+  | TmAnnot Term Type
 
 type TI a = ExceptT String (StateT TIEnv IO) a
 
@@ -73,21 +70,21 @@ writeTIRef :: IORef a -> a -> TI ()
 writeTIRef ref = liftIO . writeIORef ref
 
 data TIEnv = TIEnv
-  { tyEnv :: M.Map Name Sigma
+  { tyEnv :: M.Map Name Type
   , knEnv :: M.Map Name Kind }
 
-extendTyEnv :: Name -> Sigma -> TI a -> TI a
-extendTyEnv name sigma ti = do
+extendTyEnv :: Name -> Type -> TI a -> TI a
+extendTyEnv name ty ti = do
   env <- get
-  put env { tyEnv = M.insert name sigma (tyEnv env) }
+  put env { tyEnv = M.insert name ty (tyEnv env) }
   ti <* put env
 
-lookupTyEnv :: Name -> TI Sigma
+lookupTyEnv :: Name -> TI Type
 lookupTyEnv name = do
   env <- gets tyEnv
   case M.lookup name env of
     Nothing -> throwError ("Variable not in scope: " ++ name)
-    Just sigma -> return sigma
+    Just ty -> return ty
 
 extendKnEnv :: Name -> Kind -> TI a -> TI a
 extendKnEnv name kind ti = do
@@ -102,37 +99,27 @@ lookupKnEnv name = do
     Nothing -> throwError ("Type variable not in scope: " ++ name)
     Just kind -> return kind
 
--- maybe we should merge `Kind`, `Sigma`, `Rho`, and `Tau` :)
-data Kind
-  = KnStar
-  | KnArr Kind Kind
-  | KnMeta KnMeta
-
-newKnVar :: TI Kind
-newKnVar = fmap KnMeta newMeta
-
-data Sigma = TyForall [TyVar] Rho
-
-data Rho
-  = TyMono Tau
-  | TyArr Sigma Sigma
-
-data Tau
-  = TyCon Name
+data Type
+  = TyForall [TyVar] Rho
+  | TyArr Type Type
+  | TyCon Name
   | TyVar TyVar
   | TyAp Tau Tau -- predicativity
   | TyMeta TyMeta
 
-pattern TyArr0 a b = TyAp (TyAp (TyCon "->") a) b
+mkForall :: [TyVar] -> Rho -> Sigma
+mkForall [] = id
+mkForall tvs = TyForall tvs
 
-sigmaToRho :: Sigma -> Rho
-sigmaToRho (TyForall [] rho) = rho
+type Sigma = Type
 
-rhoToSigma :: Rho -> Sigma
-rhoToSigma = TyForall []
+type Rho = Type
 
-tauToSigma :: Tau -> Sigma
-tauToSigma = rhoToSigma . TyMono
+type Tau = Type
+
+type Kind = Type
+
+pattern KnStar = TyCon "*"
 
 newTyVar :: TI Tau
 newTyVar = fmap TyMeta newMeta
@@ -165,26 +152,24 @@ newSkolemTyVar tv = do
   uniq <- liftIO newUnique
   return (Skolem (getTyVarName tv) uniq)
 
-type TyMeta = MetaVar Tau -- predicativity
+type TyMeta = Meta Tau -- predicativity
 
-type KnMeta = MetaVar Kind
+data Meta a = Meta Unique (IORef (Maybe a))
 
-data MetaVar a = MetaVar Unique (IORef (Maybe a))
+instance Eq (Meta a) where
+  Meta u1 _ == Meta u2 _ = u1 == u2
 
-instance Eq (MetaVar a) where
-  MetaVar u1 _ == MetaVar u2 _ = u1 == u2
+instance Ord (Meta a) where
+  Meta u1 _ `compare` Meta u2 _ = u1 `compare` u2
 
-instance Ord (MetaVar a) where
-  MetaVar u1 _ `compare` MetaVar u2 _ = u1 `compare` u2
-
-newMeta :: TI (MetaVar a)
+newMeta :: TI (Meta a)
 newMeta = do
   uniq <- liftIO newUnique
   ref <- newTIRef Nothing
-  return (MetaVar uniq ref)
+  return (Meta uniq ref)
 
-readMeta :: (MetaVar a) -> TI (Maybe a)
-readMeta (MetaVar _ ref) = readTIRef ref
+readMeta :: (Meta a) -> TI (Maybe a)
+readMeta (Meta _ ref) = readTIRef ref
 
-writeMeta :: (MetaVar a) -> a -> TI ()
-writeMeta (MetaVar _ ref) = writeTIRef ref . Just
+writeMeta :: (Meta a) -> a -> TI ()
+writeMeta (Meta _ ref) = writeTIRef ref . Just

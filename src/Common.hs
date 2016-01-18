@@ -16,3 +16,6 @@ accum xs = (foldr mappend mempty (fmap fst xs), fmap snd xs)
 
 class Pretty a where
   pprint :: a -> Doc
+
+tab :: Doc -> Doc
+tab = nest 2
