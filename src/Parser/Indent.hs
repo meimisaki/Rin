@@ -2,7 +2,6 @@ module Parser.Indent
 ( module Text.Parsec
 , Indent
 , runIndent
-, inline
 , indented
 , aligned
 , withPos
@@ -14,34 +13,26 @@ import Text.Parsec.Pos
 type Indent = Parsec String SourcePos
 
 runIndent :: Indent a -> SourceName -> String -> Either ParseError a
-runIndent p s = runParser p (initialPos s) s
-
-inline :: Indent a -> Indent a
-inline p = do
-  l1 <- sourceLine <$> getPosition
-  l2 <- sourceLine <$> getState
-  if l1 == l2
-    then p
-    else fail "Over one line"
+runIndent ip name = runParser ip (initialPos name) name
 
 indented :: Indent a -> Indent a
-indented p = do
-  c1 <- sourceColumn <$> getPosition
-  c2 <- sourceColumn <$> getState
-  if c1 > c2
-    then p
+indented ip = do
+  col1 <- sourceColumn <$> getPosition
+  col2 <- sourceColumn <$> getState
+  if col1 > col2
+    then ip
     else fail "Indentation required"
 
 aligned :: Indent a -> Indent a
-aligned p = do
-  c1 <- sourceColumn <$> getPosition
-  c2 <- sourceColumn <$> getState
-  if c1 == c2
-    then p -- semicolon
+aligned ip = do
+  col1 <- sourceColumn <$> getPosition
+  col2 <- sourceColumn <$> getState
+  if col1 == col2
+    then ip -- semicolon
     else fail "Incorrect indentation" -- vccurly
 
 withPos :: Indent a -> Indent a
-withPos p = do -- vocurly
-  s <- getState
+withPos ip = do -- vocurly
+  st <- getState
   getPosition >>= putState
-  p <* putState s
+  ip <* putState st
