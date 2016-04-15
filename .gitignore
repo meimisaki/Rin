@@ -1,2 +1,7 @@
 .DS_Store
 
+/dist
+
+src/Parser/Lexer.hs
+src/Parser/Parser.hs
+
