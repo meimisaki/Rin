@@ -1,6 +1,6 @@
 .DS_Store
 
-/dist
+dist
 
 src/Parser/Lexer.hs
 src/Parser/Parser.hs

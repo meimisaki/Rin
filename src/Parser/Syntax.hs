@@ -1,3 +1,5 @@
+{-# LANGUAGE PatternSynonyms #-}
+
 module Parser.Syntax
 ( module Parser.Syntax
 , module Type.Types
@@ -15,14 +17,12 @@ data Dec
   | DataD Name [Name] [Con]
   | SigD [Name] Type
   | InfixD Fixity [Name]
-  deriving Show
 
 type Clause = ([Pat], Body, [Dec])
 
 data Body
   = NormalB Exp
   | GuardedB [(Guard, Exp)]
-  deriving Show
 
 type Guard = Exp
 
@@ -31,9 +31,7 @@ data Exp
   | ConE Name
   | LitE Lit
   | AppE Exp Exp
-  | LSecE Exp Name
-  | RSecE Name Exp
-  | InfixE Exp Name Exp
+  | InfixE (Maybe Exp) Name (Maybe Exp)
   | UInfixE Exp Name Exp
   | ParensE Exp -- necessary, since we leave infix expression unresolved
   | LamE [Pat] Exp
@@ -47,7 +45,9 @@ data Exp
   | AsE Name Pat
   | WildE
 -- TODO: arith sequences, list comprehensions, etc.
-  deriving Show
+
+pattern LSecE e op = InfixE (Just e) op Nothing
+pattern RSecE op e = InfixE Nothing op (Just e)
 
 type Pat = Exp
 
@@ -57,32 +57,34 @@ data Lit
   = CharL Char
   | StringL String
   | NumberL Int
-  deriving Show
 
 data Con
   = NormalC Name [Type]
   | InfixC Type Name Type
-  deriving Show
 
 data Fixity = Fixity Assoc Int
-  deriving Show
 
 data Assoc = InfixN | InfixL | InfixR
-  deriving Show
+
+isWired :: Name -> Bool
+isWired x = case x of
+  ch:_ -> ch == '(' || ch == '['
+  _ -> False
 
 isVarId :: Name -> Bool
 isVarId x = case x of
-  ch:_ | isLower ch || ch == '_' -> True
+  '_':_:_ -> True
+  ch:_ -> isLower ch
   _ -> False
 
 isConId :: Name -> Bool
 isConId x = case x of
-  ch:_ | isUpper ch -> True
+  ch:_ -> isUpper ch
   _ -> False
 
 isVarSym :: Name -> Bool
 isVarSym x = case x of
-  ch:_ | ch /= ':' -> True
+  ch:_ -> not (isAlpha ch) && ch /= '_' && ch /= ':'
   _ -> False
 
 isConSym :: Name -> Bool

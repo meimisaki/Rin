@@ -35,6 +35,7 @@ instance Pretty Name where
 
 instance Pretty a => Pretty (Maybe a) where
   pprint = maybe empty pprint
+  precOf = maybe maxBound precOf
 
 tab :: Doc -> Doc
 tab = nest 2

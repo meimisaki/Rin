@@ -40,9 +40,12 @@ instance Pretty (Expr Name) where
       [ pprintPrec (pr - 1) e1
       , pprintPrec pr e2 ]
     ELet rec defs body -> sep
-      [ text (if rec then "letrec" else "let") <+> vcat (map pprintDef defs)
+      [ text (if rec then "letrec" else "let") <+> vcat (map pdef defs)
       , text "in" <+> pprint body ]
-      where pprintDef (x, e) = text x <+> equals <+> pprint e
+      where pdef (x, e) = hsep
+              [ text x
+              , equals
+              , pprint e ]
     ECase e alts -> sep
       [ text "case" <+> pprint e <+> text "of"
       , tab (vcat (map pprint alts)) ]

@@ -77,9 +77,12 @@ var :: { Name }
 con :: { Name }
   : CONID { getCONID $1 }
   | '(' CONSYM ')' { getCONSYM $2 }
-  | '[' ']' { listCon }
-  | '(' ')' { tupCon 0 }
+  | wired { $1 }
+
+wired :: { Name }
+  : '(' ')' { tupCon 0 }
   | '(' commas ')' { tupCon $2 }
+  | '[' ']' { listCon }
 
 varop :: { Name }
   : VARSYM { getVARSYM $1 }
@@ -111,6 +114,7 @@ tyvar :: { Name }
 
 tycon :: { Name }
   : CONID { getCONID $1 }
+  | wired { $1 }
 
 tyvars :: { [Name] }
   : tyvars tyvar { $1 ++ [$2] }
@@ -189,12 +193,10 @@ btype :: { Type }
 atype :: { Type }
   : tyvar { TyVar (Bound $1) }
   | tycon { TyCon $1 }
-  | '(' ')' { TyCon (tupCon 0) }
   | '(' ctype ')' { $2 }
   | '(' types ')' {
     let tc = TyCon (tupCon (length $2 - 1))
     in foldl TyAp tc $2 }
-  | '[' ']' { TyCon listCon }
   | '[' type ']' { TyAp (TyCon listCon) $2 } -- TODO: check predicativity
 
 types :: { [Type] }
@@ -323,9 +325,9 @@ checkFun e body decs = do
       checkPat e
       return (ValD e body decs)
     Just (var, []) -> return (ValD (VarE var) body decs)
-    Just (fun, pats) -> do
+    Just (var, pats) -> do
       mapM checkPat pats
-      return (FunD fun [(pats, body, decs)])
+      return (FunD var [(pats, body, decs)])
   where go (VarE var) = return (var, [])
         go (AppE e pat) = do
           (var, pats) <- go e
