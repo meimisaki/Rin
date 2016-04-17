@@ -86,14 +86,14 @@ instance Pretty Exp where
     AppE e1 e2 -> sep
       [ pprintPrec (pr - 1) e1
       , pprintPrec pr e2 ]
-    InfixE e1 op e2 -> sep
+    GInfixE e1 op e2 -> sep
       [ pprintPrec pr e1
       , psym op
       , pprintPrec (pr - 1) e2 ]
-    UInfixE e1 op e2 -> pprint (InfixE (Just e1) op (Just e2))
+    UInfixE e1 op e2 -> pprint (InfixE e1 op e2)
     ParensE e -> parens (pprint e)
     LamE pats e -> hsep
-      [ char '\\' <> sep (map pprint pats) -- p_apat
+      [ char '\\' <> sep (map pprint pats)
       , text "->"
       , pprintPrec (pr - 1) e ]
     TupE exps -> parens (commaSep exps)
@@ -126,7 +126,7 @@ instance Pretty Exp where
     CondE _ _ _ -> 1
     CaseE _ _ -> 1
     LetE _ _ -> 1
-    InfixE _ _ _ -> 1
+    GInfixE _ _ _ -> 1
     UInfixE _ _ _ -> 1
     AppE _ _ -> 2
     _ -> 3 -- atomic

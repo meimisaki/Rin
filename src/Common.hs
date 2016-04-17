@@ -30,6 +30,9 @@ class Pretty a where
 instance Pretty Doc where
   pprint = id
 
+instance Pretty Int where
+  pprint = int
+
 instance Pretty Name where
   pprint = text
 

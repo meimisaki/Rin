@@ -31,7 +31,7 @@ data Exp
   | ConE Name
   | LitE Lit
   | AppE Exp Exp
-  | InfixE (Maybe Exp) Name (Maybe Exp)
+  | GInfixE (Maybe Exp) Name (Maybe Exp)
   | UInfixE Exp Name Exp
   | ParensE Exp -- necessary, since we leave infix expression unresolved
   | LamE [Pat] Exp
@@ -46,8 +46,9 @@ data Exp
   | WildE
 -- TODO: arith sequences, list comprehensions, etc.
 
-pattern LSecE e op = InfixE (Just e) op Nothing
-pattern RSecE op e = InfixE Nothing op (Just e)
+pattern LSecE e op = GInfixE (Just e) op Nothing
+pattern RSecE op e = GInfixE Nothing op (Just e)
+pattern InfixE e1 op e2 = GInfixE (Just e1) op (Just e2)
 
 type Pat = Exp
 

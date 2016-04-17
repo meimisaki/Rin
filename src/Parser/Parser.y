@@ -6,7 +6,9 @@ module Parser.Parser
 import Common
 
 import Parser.Lexer
+import Parser.PrettyPrint
 import Parser.Syntax
+import Text.PrettyPrint
 }
 
 -- TODO: better diagnostic
@@ -142,7 +144,9 @@ fundecl :: { Dec }
   : infixexp rhs wherebinds {% checkFun $1 $2 $3 }
 
 rhs :: { Body }
-  : '=' exp { NormalB $2 }
+  : '=' exp {% do
+    checkExp $2
+    return (NormalB $2) }
   | gdrhss { GuardedB $1 }
 
 gdrhss :: { [(Guard, Exp)] }
@@ -150,7 +154,10 @@ gdrhss :: { [(Guard, Exp)] }
   | gdrhs { [$1] }
 
 gdrhs :: { (Guard, Exp) }
-  : '|' exp '=' exp { ($2, $4) }
+  : '|' exp '=' exp {% do
+    checkExp $2
+    checkExp $4
+    return ($2, $4) }
 
 datadecl :: { Dec }
   : 'data' tycon tyvars '=' constrs { DataD $2 $3 $5 }
@@ -161,10 +168,15 @@ constrs :: { [Con] }
 
 constr :: { Con }
   : btype {% checkDataCon $1 }
-  | btype conop btype { InfixC $1 $2 $3 }
+  | btype conop btype {% do
+    checkPred $1
+    checkPred $3
+    return (InfixC $1 $2 $3) }
 
 sigdecl :: { Dec }
-  : vars '::' type { SigD $1 $3 }
+  : vars '::' type {% do
+    checkPred $3
+    return (SigD $1 $3) }
 
 fixitydecl :: { Dec }
  : assoc prec ops { InfixD (Fixity $1 $2) $3 }
@@ -187,7 +199,7 @@ ctype :: { Type }
   | type { $1 }
 
 btype :: { Type }
-  : btype atype { TyAp $1 $2 } -- TODO: check predicativity
+  : btype atype { TyAp $1 $2 }
   | atype { $1 }
 
 atype :: { Type }
@@ -197,14 +209,16 @@ atype :: { Type }
   | '(' types ')' {
     let tc = TyCon (tupCon (length $2 - 1))
     in foldl TyAp tc $2 }
-  | '[' type ']' { TyAp (TyCon listCon) $2 } -- TODO: check predicativity
+  | '[' type ']' { TyAp (TyCon listCon) $2 }
 
 types :: { [Type] }
   : types ',' type { $1 ++ [$3] }
   | type ',' type { [$1, $3] }
 
 exp :: { Exp }
-  : infixexp '::' type { SigE $1 $3 }
+  : infixexp '::' type {% do
+    checkPred $3
+    return (SigE $1 $3) }
   | infixexp { $1 }
 
 infixexp :: { Exp }
@@ -238,10 +252,10 @@ texp :: { Exp }
   | exp { $1 }
 
 texps :: { [Exp] }
-  : texps ',' exp {% do
+  : texps ',' texp {% do
     checkSec $3
     return ($1 ++ [$3]) }
-  | exp ',' exp {% do
+  | texp ',' texp {% do
     checkSec $1
     checkSec $3
     return [$1, $3] }
@@ -262,7 +276,9 @@ alt :: { Match }
   : pat altrhs wherebinds { ($1, $2, $3) }
 
 altrhs :: { Body }
-  : '->' exp { NormalB $2 }
+  : '->' exp {% do
+    checkExp $2
+    return (NormalB $2) }
   | gdalts { GuardedB $1 }
 
 gdalts :: { [(Guard, Exp)] }
@@ -270,7 +286,10 @@ gdalts :: { [(Guard, Exp)] }
   | gdalt { [$1] }
 
 gdalt :: { (Guard, Exp) }
-  : '|' exp '->' exp { ($2, $4) }
+  : '|' exp '->' exp {% do
+    checkExp $2
+    checkExp $4
+    return ($2, $4) }
 
 pat :: { Pat }
   : exp {% do
@@ -309,6 +328,11 @@ decl :: { Dec }
 happyError :: P a
 happyError = fail "Parser error"
 
+parseError :: Pretty a => String -> a -> P b
+parseError prompt info = fail $ show $ sep
+  [ text prompt
+  , pprint info ]
+
 getVARID, getCONID, getVARSYM, getCONSYM :: Located Token -> Name
 getVARID (L _ (ITvarid x)) = x
 getCONID (L _ (ITconid x)) = x
@@ -326,7 +350,7 @@ checkFun e body decs = do
       return (ValD e body decs)
     Just (var, []) -> return (ValD (VarE var) body decs)
     Just (var, pats) -> do
-      mapM checkPat pats
+      mapM_ checkPat pats
       return (FunD var [(pats, body, decs)])
   where go (VarE var) = return (var, [])
         go (AppE e pat) = do
@@ -337,33 +361,91 @@ checkFun e body decs = do
           (pat1, op, pat2) <- go1 e
           return (op, [pat1, pat2])
         go1 (UInfixE e op pat)
-          | isVarSym op = return (e, op, pat)
+          | isVarId op || isVarSym op = return (e, op, pat)
           | otherwise = do
             (pat1, op1, pat2) <- go1 e
             return (pat1, op1, UInfixE pat2 op pat)
         go1 (ParensE e) = go1 e
         go1 _ = fail "Parse error in function binding"
 
+checkExp :: Exp -> P ()
+checkExp e = case e of
+  AppE e1 e2 -> do
+    checkExp e1
+    checkExp e2
+  GInfixE e1 _ e2 -> do
+    maybe (return ()) checkExp e1
+    maybe (return ()) checkExp e2
+  UInfixE e1 op e2 -> checkExp (InfixE e1 op e2)
+  ParensE e -> checkExp e
+  LamE _ e -> checkExp e
+  TupE exps -> mapM_ checkExp exps
+  ListE exps -> mapM_ checkExp exps
+  CondE e0 e1 e2 -> do
+    checkExp e0
+    checkExp e1
+    checkExp e2
+  CaseE e _ -> checkExp e
+  LetE _ e -> checkExp e
+  SigE e _ -> checkExp e
+  AsE _ _ -> err
+  WildE -> err
+  _ -> return ()
+  where err = parseError "Pattern syntax in expression context:" e
+
 checkDataCon :: Type -> P Con
-checkDataCon (TyCon con) | isConId con = return (NormalC con [])
-checkDataCon (TyAp ty1 ty2) = do
-  NormalC con tys <- checkDataCon ty1
-  return (NormalC con (tys ++ [ty2]))
-checkDataCon _ = fail "Parse error in data constructor"
+checkDataCon ty = do
+  (con, tys) <- go ty
+  mapM_ checkPred tys
+  return (NormalC con tys)
+  where go (TyCon con) | isConId con = return (con, [])
+        go (TyAp ty1 ty2) = do
+          (con, tys) <- go ty1
+          return (con, tys ++ [ty2])
+        go _ = parseError "Parse error in data constructor:" ty
+
+checkPred :: Type -> P ()
+checkPred (TyForall _ ty) = checkPred ty
+checkPred (TyArr ty1 ty2) = do
+  checkPred ty1
+  checkPred ty2
+checkPred ty@(TyAp ty1 ty2) = do
+  case ty2 of
+    TyForall _ _ -> parseError "Illegal impredicative type:" ty
+    _ -> checkPred ty2
+  checkPred ty1
+checkPred _ = return ()
 
 checkPrec :: Int -> P Int
 checkPrec n
   | minPrec <= n && n <= maxPrec = return n
-  | otherwise = fail "Precedence out of range"
+  | otherwise = parseError "Precedence out of range:" n
 
--- TODO: check pattern
 checkPat :: Pat -> P ()
-checkPat pat = return ()
+checkPat pat = case pat of
+  VarE _ -> return ()
+  ConE _ -> return ()
+  LitE _ -> return ()
+  AppE _ _ -> go pat
+  InfixE _ op _ -> unless (isConId op || isConSym op) err
+  UInfixE pat1 op pat2 -> checkPat (InfixE pat1 op pat2)
+  ParensE pat1 -> checkPat pat1
+  TupE pats -> mapM_ checkPat pats
+  ListE pats -> mapM_ checkPat pats
+  AsE _ _ -> return ()
+  WildE -> return ()
+  _ -> err
+  where go (ConE _) = return ()
+        go (AppE pat1 pat2) = do
+          go pat1
+          checkPat pat2
+        go _ = err
+        err = parseError "Parse error in pattern:" pat
 
 checkSec :: Exp -> P ()
 checkSec e = case e of
   LSecE _ _ -> err
   RSecE _ _ -> err
   _ -> return ()
-  where err = fail "Section must be enclosed in parentheses"
+  where err = parseError "Section must be enclosed in parentheses:" e
 }
