@@ -76,7 +76,7 @@ instance Pretty Dec where
       [ commaSep (map pid vars)
       , text "::"
       , pprint ty ]
-    InfixD fixity ops -> pprint fixity <+> commaSep (map psym ops)
+    InfixD fix ops -> pprint fix <+> commaSep (map psym ops)
 
 instance Pretty Exp where
   pprint e = case e of
@@ -89,7 +89,7 @@ instance Pretty Exp where
     GInfixE e1 op e2 -> sep
       [ pprintPrec pr e1
       , psym op
-      , pprintPrec (pr - 1) e2 ]
+      , pprintPrec pr e2 ]
     UInfixE e1 op e2 -> pprint (InfixE e1 op e2)
     ParensE e -> parens (pprint e)
     LamE pats e -> hsep

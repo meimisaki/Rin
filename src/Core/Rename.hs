@@ -7,24 +7,11 @@ module Core.Rename
 
 import Common
 
-import Control.Monad.State
 import Core.AST
 import Data.NameSupply
 import Data.Functor.Identity
 import qualified Data.Map as M
 import qualified Data.Set as S
-
-type NS = State NameSupply
-
-evalNS :: NS a -> NameSupply -> a
-evalNS = evalState
-
-newName :: NS Name
-newName = do
-  ns <- get
-  let (name, ns') = getFreshName ns
-  put ns'
-  return name
 
 rename_ :: Program Name -> Program Name
 rename_ = fmap runIdentity . rename runIdentity . fmap Identity

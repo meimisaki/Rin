@@ -4,7 +4,6 @@ module TIM.Evaluator
 ( eval
 ) where
 
-import qualified Data.Heap as H
 import qualified Data.Map as M
 import TIM.Types
 

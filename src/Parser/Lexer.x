@@ -291,15 +291,15 @@ mkPState src = PState
 
 setLastLoc :: Loc -> P ()
 setLastLoc loc = P $ \s ->
-  POk (s { lastLoc = loc }) ()
+  POk s { lastLoc = loc } ()
 
 pushLexState :: Int -> P ()
 pushLexState l = P $ \s@(PState { lexState = ls }) ->
-  POk (s { lexState = l:ls }) ()
+  POk s { lexState = l:ls } ()
 
 popLexState :: P Int
 popLexState = P $ \s@(PState { lexState = l:ls }) ->
-  POk (s { lexState = ls }) l
+  POk s { lexState = ls } l
 
 getLexState :: P Int
 getLexState = P $ \s@(PState { lexState = l:_ }) ->
@@ -316,16 +316,16 @@ getContext = P $ \s@(PState { context = ctx }) ->
 
 setContext :: [LContext] -> P ()
 setContext ctx = P $ \s ->
-  POk (s { context = ctx }) ()
+  POk s { context = ctx } ()
 
 popContext :: P ()
 popContext = P $ \s@(PState { lastLoc = loc, context = ctx }) -> case ctx of
-  _:ctx1 -> POk (s { context = ctx1 }) ()
+  _:ctx1 -> POk s { context = ctx1 } ()
   _ -> PFailed loc "Layout context error"
 
 pushCurrentContext :: P ()
 pushCurrentContext = P $ \s@(PState { lastLoc = Loc _ col, context = ctx }) ->
-  POk (s { context = Layout col:ctx }) ()
+  POk s { context = Layout col:ctx } ()
 
 getOffside :: P Ordering
 getOffside = P $ \s@(PState { lastLoc = Loc _ col, context = ctx }) -> 
@@ -367,7 +367,7 @@ getInput = P $ \s@(PState { location = loc, buffer = buf }) ->
 
 setInput :: AlexInput -> P ()
 setInput (AI loc buf) = P $ \s ->
-  POk (s { location = loc, buffer = buf }) ()
+  POk s { location = loc, buffer = buf } ()
 
 lexToken :: P (Located Token)
 lexToken = do

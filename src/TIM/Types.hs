@@ -1,10 +1,8 @@
 module TIM.Types where
 
-import Prelude hiding (lookup)
-
 import Common
 
-import Data.Heap
+import qualified Data.Heap as H
 import qualified Data.Map as M
 
 data Instr
@@ -48,13 +46,13 @@ data TIM = TIM
   , stack :: Stack
   , valueStack :: ValueStack
   , dump :: Dump
-  , heap :: Heap Frame
+  , heap :: H.Heap Frame
   , codeStore :: CodeStore
   , stats :: Stats }
   deriving Show
 
 data FramePtr
-  = FrameAddr Addr
+  = FrameAddr H.Addr
   | FrameInt Int
   | FrameNull
   deriving Show
@@ -65,17 +63,17 @@ type Closure = ([Instr], FramePtr)
 
 type Frame = [Closure]
 
-allocFrame :: Heap Frame -> Frame -> (Heap Frame, FramePtr)
+allocFrame :: H.Heap Frame -> Frame -> (H.Heap Frame, FramePtr)
 allocFrame heap xs = (heap', FrameAddr addr)
-  where (heap', addr) = alloc heap xs
+  where (heap', addr) = H.alloc heap xs
 
-getFrame :: Heap Frame -> FramePtr -> Int -> Closure
+getFrame :: H.Heap Frame -> FramePtr -> Int -> Closure
 getFrame heap (FrameAddr addr) n = xs !! (n - 1)
-  where xs = lookup heap addr
+  where xs = H.lookup heap addr
 
-updateFrame :: Heap Frame -> FramePtr -> Int -> Closure -> Heap Frame
-updateFrame heap (FrameAddr addr) n closure = update heap addr xs'
-  where xs = lookup heap addr
+updateFrame :: H.Heap Frame -> FramePtr -> Int -> Closure -> H.Heap Frame
+updateFrame heap (FrameAddr addr) n closure = H.update heap addr xs'
+  where xs = H.lookup heap addr
         xs' = take (n - 1) xs ++ [closure] ++ drop n xs
 
 type ValueStack = [Int]

@@ -66,6 +66,7 @@ data Con
 data Fixity = Fixity Assoc Int
 
 data Assoc = InfixN | InfixL | InfixR
+  deriving Eq
 
 isWired :: Name -> Bool
 isWired x = case x of
