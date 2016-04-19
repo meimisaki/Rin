@@ -135,9 +135,7 @@ instance Pretty Lit where
   pprint = text . show
 
 instance Pretty Con where
-  pprint con = case con of
-    NormalC dc tys -> pprint (foldl TyAp (TyCon dc) tys)
-    InfixC ty1 op ty2 -> hsep [pprint ty1, psym op, pprint ty2]
+  pprint (NormalC dc tys) = pprint (foldl TyAp (TyCon dc) tys)
 
 instance Pretty Fixity where
   pprint (Fixity assoc prec) = pprint assoc <+> int prec

@@ -59,9 +59,9 @@ data Lit
   | StringL String
   | NumberL Int
 
-data Con
-  = NormalC Name [Type]
-  | InfixC Type Name Type
+data Con = NormalC Name [Type]
+
+pattern InfixC ty1 op ty2 = NormalC op [ty1, ty2]
 
 data Fixity = Fixity Assoc Int
 

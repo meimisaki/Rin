@@ -427,12 +427,15 @@ checkPat pat = case pat of
   ConE _ -> return ()
   LitE _ -> return ()
   AppE _ _ -> go pat
-  InfixE _ op _ -> unless (isConId op || isConSym op) err
+  InfixE pat1 op pat2 -> do
+    unless (isConId op || isConSym op) err
+    checkPat pat1
+    checkPat pat2
   UInfixE pat1 op pat2 -> checkPat (InfixE pat1 op pat2)
-  ParensE pat1 -> checkPat pat1
+  ParensE pat -> checkPat pat
   TupE pats -> mapM_ checkPat pats
   ListE pats -> mapM_ checkPat pats
-  AsE _ _ -> return ()
+  AsE _ pat -> checkPat pat
   WildE -> return ()
   _ -> err
   where go (ConE _) = return ()

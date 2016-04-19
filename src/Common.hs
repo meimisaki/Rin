@@ -3,6 +3,7 @@
 module Common where
 
 import qualified Data.Map as M
+import Data.Monoid
 import Text.PrettyPrint
 
 type Name = String
@@ -15,6 +16,12 @@ extend = foldr (uncurry M.insert)
 
 accum :: (Monoid a, Functor t, Foldable t) => t (a, b) -> (a, t b)
 accum xs = (foldMap fst xs, fmap snd xs)
+
+first :: Foldable t => (a -> Maybe b) -> t a -> Maybe b
+first f = getFirst . foldMap (First . f)
+
+compose :: Foldable t => (a -> b -> b) -> t a -> b -> b
+compose f = appEndo . foldMap (Endo . f)
 
 class Pretty a where
   pprint :: a -> Doc

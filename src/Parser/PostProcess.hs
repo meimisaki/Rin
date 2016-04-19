@@ -10,6 +10,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.List as L
 import qualified Data.Map as M
+import Data.Monoid
 import Parser.PrettyPrint
 import Parser.Syntax
 import Text.PrettyPrint
@@ -21,16 +22,21 @@ type PP a = ExceptT String (State PPEnv) a
 runPP :: PP a -> PPEnv -> (Either String a, PPEnv)
 runPP = runState . runExceptT
 
-throwPP :: Show a => a -> PP b
-throwPP = throwError . show
+throwPP :: Pretty a => String -> a -> PP b
+throwPP prompt info = throwError $ show $ sep
+  [ text prompt
+  , pprint info ]
 
 data PPEnv = PPEnv { opEnv :: M.Map Name Fixity }
 
 extendOpEnv :: Name -> Fixity -> PP a -> PP a
 extendOpEnv op fix pp = do
   env <- get
-  put env { opEnv = M.insert op fix (opEnv env) }
-  pp <* put env
+  if M.member op (opEnv env)
+    then throwPP "Multiple fixity declarations for:" op
+    else do
+      put env { opEnv = M.insert op fix (opEnv env) }
+      pp <* put env
 
 lookupOpEnv :: Name -> PP Fixity
 lookupOpEnv op = do
@@ -38,11 +44,52 @@ lookupOpEnv op = do
   return (M.findWithDefault defaultFixity op env)
 
 process :: [Dec] -> PP [Dec]
-process decs = foldr go cont decs
-  where go dec cont = case dec of
+process decs = case first conflict (M.assocs bndrs) of
+  Nothing -> do
+    case first noBind ops of
+      Nothing -> foldr go cont decs1
+      Just op -> throwPP "Fixity declaration lacks an accompanying binding:" op
+  Just var -> throwPP "Conflicting definitions for:" var
+  where bndrs = M.fromListWith (+) [(var, 1) | var <- binders decs1]
+        conflict (var, n)
+          | n <= 1 = Nothing
+          | otherwise = Just var
+        ops = operators decs1
+        noBind op
+          | M.member op bndrs = Nothing
+          | otherwise = Just op
+        go dec cont = case dec of
           InfixD fix ops -> foldr (flip extendOpEnv fix) cont ops
           _ -> cont
-        cont = mapM pdec (group decs)
+        cont = mapM pdec decs1
+        decs1 = group decs
+
+binders :: [Dec] -> [Name]
+binders decs = go decs []
+  where go [] = id
+        go (dec:decs) = go decs . case dec of
+          FunD var _ -> (var:)
+          ValD pat _ _ -> bpat pat
+          DataD _ _ dcs -> compose bcon dcs
+          _ -> id
+        bpat pat = case pat of
+          VarE var -> (var:)
+          AppE pat1 pat2 -> bpat pat1 . bpat pat2
+          InfixE pat1 _ pat2 -> bpat pat1 . bpat pat2
+          UInfixE pat1 op pat2 -> bpat (InfixE pat1 op pat2)
+          ParensE pat -> bpat pat
+          TupE pats -> compose bpat pats
+          ListE pats -> compose bpat pats
+          AsE var pat -> (var:) . bpat pat
+          _ -> id
+        bcon (NormalC dc _) = (dc:)
+
+operators :: [Dec] -> [Name]
+operators decs = go decs []
+  where go [] = id
+        go (dec:decs) = go decs . case dec of
+          InfixD _ ops -> (ops ++)
+          _ -> id
 
 group :: [Dec] -> [Dec]
 group decs = map collect (L.groupBy eq decs)
@@ -62,7 +109,7 @@ resolve = fmap fst . parse op1
   where op1 = Op "" (Fixity InfixN (minPrec - 1))
         parse _ [Right e] = return (e, [])
         parse op1 (Right e1:Left op2:xs)
-          | prec1 == prec2 && (fix1 /= fix2 || fix1 == InfixN) = throwPP $ sep
+          | prec1 == prec2 && (fix1 /= fix2 || fix1 == InfixN) = throwPP "Precedence parsing error:" $ sep
             [ text "Cannot mix"
             , pprint op1
             , text "and"
@@ -78,11 +125,11 @@ resolve = fmap fst . parse op1
 pdec :: Dec -> PP Dec
 pdec dec = case dec of
   FunD var xs -> FunD var <$> mapM pclause xs
-  ValD pat body decs -> ValD pat <$> pbody body <*> process decs
+  ValD pat body decs -> ValD <$> pexp pat <*> pbody body <*> process decs
   _ -> return dec
 
 pclause :: Clause -> PP Clause
-pclause (pats, body, decs) = (,,) pats <$> pbody body <*> process decs
+pclause (pats, body, decs) = (,,) <$> mapM pexp pats <*> pbody body <*> process decs
 
 pbody :: Body -> PP Body
 pbody (NormalB e) = NormalB <$> pexp e
@@ -104,7 +151,7 @@ pexp e = case e of
               return (xs ++ [Left (Op op fix), Right e3])
             _ -> return . Right <$> pexp e
   ParensE e -> ParensE <$> pexp e
-  LamE pats e -> LamE pats <$> pexp e
+  LamE pats e -> LamE <$> mapM pexp pats <*> pexp e
   TupE exps -> TupE <$> mapM pexp exps
   ListE exps -> ListE <$> mapM pexp exps
   CondE e0 e1 e2 -> CondE <$> pexp e0 <*> pexp e1 <*> pexp e2
@@ -113,4 +160,4 @@ pexp e = case e of
   _ -> return e
 
 pmatch :: Match -> PP Match
-pmatch (pat, body, decs) = (,,) pat <$> pbody body <*> process decs
+pmatch (pat, body, decs) = (,,) <$> pexp pat <*> pbody body <*> process decs
