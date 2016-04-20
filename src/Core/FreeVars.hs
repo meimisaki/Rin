@@ -30,8 +30,7 @@ freeVarsExpr vars e = Annot $ case e of
           defsFV = (if rec then bind else id) (S.unions (map getAnnot exps'))
           bodyFV = bind (getAnnot body')
           bind = (S.\\ S.fromList xs)
-          xs = map fst defs
-          exps = map snd defs
+          (xs, exps) = unzip defs
   ECase e alts -> (S.union (getAnnot e') altsFV, ECaseF e' alts')
     where e' = freeVarsExpr vars e
           alts' = map (freeVarsAlter vars) alts

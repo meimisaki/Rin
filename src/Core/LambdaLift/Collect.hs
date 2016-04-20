@@ -34,8 +34,7 @@ collectExpr e = case e of
           (bodySC, body') = collectExpr body
           (lambdas, defs') = partition (isAbs . snd) (zip xs exps')
           scDefs = [Supercomb name args body | (name, EAbs args body) <- lambdas]
-          xs = map fst defs
-          exps = map snd defs
+          (xs, exps) = unzip defs
   ECase e alts -> (scDefs ++ altsSC, ECase e' alts')
     where (scDefs, e') = collectExpr e
           (altsSC, alts') = accum (map collectAlter alts)

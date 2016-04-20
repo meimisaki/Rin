@@ -39,8 +39,7 @@ abstractExpr env a@(Annot (fv, e)) = case e of
           env'' = if rec then env' else env
           fv' = abstractFreeVars env (bind (S.unions (map getAnnot exps)))
           bind = (S.\\ S.fromList xs)
-          xs = map fst lambdas
-          exps = map snd lambdas
+          (xs, exps) = unzip lambdas
   ECaseF e alts -> ECase (abstractExpr env e) (map (abstractAlter env) alts)
   EAbsF args body -> foldl EAp e' (map EVar fv')
     where e' = ELet False [(anonym, mkAbs env fv' a)] (EVar anonym)

@@ -35,8 +35,7 @@ deBruijnExpr k env (Annot (fv, e)) = Annot $ case e of
           env' = extend env (zip xs (repeat k'))
           env'' = if rec then extend env (zip xs (repeat 0)) else env
           k' = deBruijnFreeVars env'' (S.unions (map getAnnot exps))
-          xs = map fst defs
-          exps = map snd defs
+          (xs, exps) = unzip defs
   ECaseF e alts -> (k'', ECaseF e' alts')
     where e' = deBruijnExpr k env e
           alts' = map (deBruijnAlter k k' env) alts
