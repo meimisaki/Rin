@@ -1,5 +1,5 @@
 module Parser.PostProcess
-( PP, runPP
+( PP, runPP, throwPP
 , PPEnv (..), extendOpEnv, lookupOpEnv
 , process
 ) where
@@ -22,10 +22,8 @@ type PP a = ExceptT String (State PPEnv) a
 runPP :: PP a -> PPEnv -> (Either String a, PPEnv)
 runPP = runState . runExceptT
 
-throwPP :: Pretty a => String -> a -> PP b
-throwPP prompt info = throwError $ show $ sep
-  [ text prompt
-  , pprint info ]
+throwPP :: Show a => a -> PP b
+throwPP = throwError . show
 
 data PPEnv = PPEnv { opEnv :: M.Map Name Fixity }
 
@@ -33,7 +31,9 @@ extendOpEnv :: Name -> Fixity -> PP a -> PP a
 extendOpEnv op fix pp = do
   env <- get
   if M.member op (opEnv env)
-    then throwPP "Multiple fixity declarations for:" op
+    then throwPP $ sep
+      [ text "Multiple fixity declarations for"
+      , psym op ]
     else do
       put env { opEnv = M.insert op fix (opEnv env) }
       pp <* put env
@@ -47,9 +47,19 @@ process :: [Dec] -> PP [Dec]
 process decs = case first conflict (M.assocs bndrs) of
   Nothing -> do
     case first noBind ops of
-      Nothing -> foldr go cont decs1
-      Just op -> throwPP "Fixity declaration lacks an accompanying binding:" op
-  Just var -> throwPP "Conflicting definitions for:" var
+      Nothing -> case first diffArgs decs1 of
+        Nothing -> foldr go cont decs1
+        Just var -> throwPP $ sep
+          [ text "Equations for"
+          , pid var
+          , text "have different number of arguments" ]
+      Just op -> throwPP $ sep
+        [ text "Fixity declaration for"
+        , psym op
+        , text "lacks an accompanying binding" ]
+  Just var -> throwPP $ sep
+        [ text "Conflicting definitions for"
+        , pid var ]
   where bndrs = M.fromListWith (+) [(var, 1) | var <- binders decs1]
         conflict (var, n)
           | n <= 1 = Nothing
@@ -58,6 +68,9 @@ process decs = case first conflict (M.assocs bndrs) of
         noBind op
           | M.member op bndrs = Nothing
           | otherwise = Just op
+        diffArgs (FunD var xs) | any (/= a) as = Just var
+          where a:as = map (\(pats, _, _) -> length pats) xs
+        diffArgs _ = Nothing
         go dec cont = case dec of
           InfixD fix ops -> foldr (flip extendOpEnv fix) cont ops
           _ -> cont
@@ -102,15 +115,16 @@ group decs = map collect (L.groupBy eq decs)
 data Op = Op Name Fixity
 
 instance Pretty Op where
-  pprint (Op op fix) = pprint (InfixD fix [op])
+  pprint (Op op fix) = psym op <+> brackets (pprint fix)
 
 resolve :: [Either Op Exp] -> PP Exp
 resolve = fmap fst . parse op1
   where op1 = Op "" (Fixity InfixN (minPrec - 1))
         parse _ [Right e] = return (e, [])
         parse op1 (Right e1:Left op2:xs)
-          | prec1 == prec2 && (fix1 /= fix2 || fix1 == InfixN) = throwPP "Precedence parsing error:" $ sep
-            [ text "Cannot mix"
+          | prec1 == prec2 && (fix1 /= fix2 || fix1 == InfixN) = throwPP $ sep
+            [ text "Precedence parsing error:"
+            , text "cannot mix"
             , pprint op1
             , text "and"
             , pprint op2

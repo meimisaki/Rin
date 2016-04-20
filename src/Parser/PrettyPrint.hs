@@ -1,5 +1,6 @@
 module Parser.PrettyPrint
 ( Pretty (..)
+, pid, psym
 ) where
 
 import Common
