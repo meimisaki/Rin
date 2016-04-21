@@ -31,9 +31,10 @@ executable Rin
     FlexibleContexts,
     FlexibleInstances,
     UndecidableInstances,
-    ViewPatterns,
-    RecordWildCards,
+    LambdaCase,
     PatternSynonyms,
+    RecordWildCards,
+    ViewPatterns,
     CPP
   build-depends:       
     base >=4.8,

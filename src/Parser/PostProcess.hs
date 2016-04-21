@@ -1,6 +1,11 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
+
 module Parser.PostProcess
 ( PP, runPP, throwPP
-, PPEnv (..), extendOpEnv, lookupOpEnv
+, PPEnv (..)
+, extendOpEnv, lookupOpEnv
+, extendVarEnv, lookupVarEnv
 , process
 ) where
 
@@ -10,6 +15,7 @@ import Control.Monad.Except
 import Control.Monad.State
 import qualified Data.List as L
 import qualified Data.Map as M
+import qualified Data.Set as S
 import Data.Monoid
 import Parser.PrettyPrint
 import Parser.Syntax
@@ -25,84 +31,85 @@ runPP = runState . runExceptT
 throwPP :: Show a => a -> PP b
 throwPP = throwError . show
 
-data PPEnv = PPEnv { opEnv :: M.Map Name Fixity }
+data PPEnv = PPEnv
+  { opEnv :: M.Map Name Fixity
+  , varEnv :: S.Set Name }
 
 extendOpEnv :: Name -> Fixity -> PP a -> PP a
 extendOpEnv op fix pp = do
   env <- get
-  if M.member op (opEnv env)
-    then throwPP $ sep
-      [ text "Multiple fixity declarations for"
-      , psym op ]
-    else do
-      put env { opEnv = M.insert op fix (opEnv env) }
-      pp <* put env
+  put env { opEnv = M.insert op fix (opEnv env) }
+  pp <* put env
 
 lookupOpEnv :: Name -> PP Fixity
 lookupOpEnv op = do
   env <- gets opEnv
   return (M.findWithDefault defaultFixity op env)
 
+extendVarEnv :: Name -> PP a -> PP a
+extendVarEnv var pp = do
+  env <- get
+  put env { varEnv = S.insert var (varEnv env) }
+  pp <* put env
+
+lookupVarEnv :: Name -> PP Bool
+lookupVarEnv var = do
+  env <- gets varEnv
+  return (S.member var env)
+
 process :: [Dec] -> PP [Dec]
-process decs = case first conflict (M.assocs bndrs) of
-  Nothing -> do
-    case first noBind ops of
-      Nothing -> case first diffArgs decs1 of
-        Nothing -> foldr go cont decs1
-        Just var -> throwPP $ sep
-          [ text "Equations for"
-          , pid var
-          , text "have different number of arguments" ]
-      Just op -> throwPP $ sep
-        [ text "Fixity declaration for"
-        , psym op
-        , text "lacks an accompanying binding" ]
+process decs = pdecs decs return
+
+pdecs :: [Dec] -> ([Dec] -> PP a) -> PP a
+pdecs (group -> decs) cont = do
+  checkEquations decs
+  bindOps vars ops (bindVars vars (mapM pdec decs >>= cont))
+  where vars = binders decs
+        ops = operators decs
+
+checkEquations :: [Dec] -> PP ()
+checkEquations decs = case first diffArgs decs of
+  Nothing -> return ()
   Just var -> throwPP $ sep
-        [ text "Conflicting definitions for"
-        , pid var ]
-  where bndrs = M.fromListWith (+) [(var, 1) | var <- binders decs1]
+    [ text "Equations for"
+    , pid var
+    , text "have different number of arguments" ]
+  where diffArgs (FunD var xs) | any (/= a) as = Just var
+          where a:as = [length pats | (pats, _, _) <- xs]
+        diffArgs _ = Nothing
+
+checkConflicts :: [Name] -> (Maybe Name -> PP a) -> PP a
+checkConflicts vars cont = cont (first conflict (M.assocs bndrs))
+  where bndrs = M.fromListWith (+) [(var, 1) | var <- vars]
         conflict (var, n)
           | n <= 1 = Nothing
           | otherwise = Just var
-        ops = operators decs1
+
+bindVars :: [Name] -> PP a -> PP a
+bindVars vars cont = checkConflicts vars $ \case
+  Nothing -> compose extendVarEnv vars cont
+  Just var -> throwPP $ sep
+    [ text "Conflicting definitions for"
+    , pid var ]
+
+bindOps :: [Name] -> [(Name, Fixity)] -> PP a -> PP a
+bindOps vars ops cont = case first noBind names of
+  Nothing -> checkConflicts names $ \case
+    Nothing -> compose (uncurry extendOpEnv) ops cont
+    Just op -> throwPP $ sep
+      [ text "Multiple fixity declarations for"
+      , psym op ]
+  Just op -> throwPP $ sep
+    [ text "Fixity declaration for"
+    , psym op
+    , text "lacks an accompanying binding" ]
+  where names = map fst ops
+        bndrs = S.fromList vars
         noBind op
-          | M.member op bndrs = Nothing
+          | S.member op bndrs = Nothing
           | otherwise = Just op
-        diffArgs (FunD var xs) | any (/= a) as = Just var
-          where a:as = map (\(pats, _, _) -> length pats) xs
-        diffArgs _ = Nothing
-        go dec cont = case dec of
-          InfixD fix ops -> foldr (flip extendOpEnv fix) cont ops
-          _ -> cont
-        cont = mapM pdec decs1
-        decs1 = group decs
 
-binders :: [Dec] -> [Name]
-binders decs = go decs []
-  where go [] = id
-        go (dec:decs) = go decs . case dec of
-          FunD var _ -> (var:)
-          ValD pat _ _ -> bpat pat
-          DataD _ _ dcs -> compose bcon dcs
-          _ -> id
-        bpat pat = case pat of
-          VarE var -> (var:)
-          AppE pat1 pat2 -> bpat pat1 . bpat pat2
-          InfixE pat1 _ pat2 -> bpat pat1 . bpat pat2
-          UInfixE pat1 op pat2 -> bpat (InfixE pat1 op pat2)
-          ParensE pat -> bpat pat
-          TupE pats -> compose bpat pats
-          ListE pats -> compose bpat pats
-          AsE var pat -> (var:) . bpat pat
-          _ -> id
-        bcon (NormalC dc _) = (dc:)
-
-operators :: [Dec] -> [Name]
-operators decs = go decs []
-  where go [] = id
-        go (dec:decs) = go decs . case dec of
-          InfixD _ ops -> (ops ++)
-          _ -> id
+-- TODO: check variable in scope
 
 group :: [Dec] -> [Dec]
 group decs = map collect (L.groupBy eq decs)
@@ -139,39 +146,65 @@ resolve = fmap fst . parse op1
 pdec :: Dec -> PP Dec
 pdec dec = case dec of
   FunD var xs -> FunD var <$> mapM pclause xs
-  ValD pat body decs -> ValD <$> pexp pat <*> pbody body <*> process decs
+  ValD pat body decs -> do
+    pat1 <- pexp pat
+    pdecs decs $ \decs1 -> do
+      body1 <- pbody body
+      return (ValD pat1 body1 decs1)
   _ -> return dec
 
 pclause :: Clause -> PP Clause
-pclause (pats, body, decs) = (,,) <$> mapM pexp pats <*> pbody body <*> process decs
+pclause (pats, body, decs) = bindVars args $ do
+  pats1 <- mapM pexp pats
+  pdecs decs $ \decs1 -> do
+    body1 <- pbody body
+    return (pats1, body1, decs1)
+  where args = arguments pats
 
 pbody :: Body -> PP Body
 pbody (NormalB e) = NormalB <$> pexp e
 pbody (GuardedB xs) = GuardedB <$> mapM pguard xs
   where pguard (g, e) = (,) <$> pexp g <*> pexp e
 
+checkBinds :: Name -> PP Name
+checkBinds var
+  | isWired var = return var
+  | otherwise = lookupVarEnv var >>= \bound -> if bound
+    then return var
+    else throwPP $ sep
+      [ text "Not in scope:"
+      , pid var ]
+
 pexp :: Exp -> PP Exp
 pexp e = case e of
+  VarE var -> VarE <$> checkBinds var
+  ConE con -> ConE <$> checkBinds con
   AppE e1 e2 -> AppE <$> pexp e1 <*> pexp e2
   GInfixE e1 op e2 -> GInfixE <$> pmaybe e1 <*> return op <*> pmaybe e2
     where pmaybe Nothing = return Nothing
           pmaybe (Just e) = Just <$> pexp e
-  UInfixE e1 op e2 -> go e >>= resolve
+  UInfixE e1 op e2 -> go e >>= resolve . reverse
     where go e = case e of
             UInfixE e1 op e2 -> do
               xs <- go e1
               fix <- lookupOpEnv op
               e3 <- pexp e2
-              return (xs ++ [Left (Op op fix), Right e3])
+              return (Right e3:Left (Op op fix):xs)
             _ -> return . Right <$> pexp e
   ParensE e -> ParensE <$> pexp e
-  LamE pats e -> LamE <$> mapM pexp pats <*> pexp e
+  LamE pats e -> bindVars args (LamE <$> mapM pexp pats <*> pexp e)
+    where args = arguments pats
   TupE exps -> TupE <$> mapM pexp exps
   ListE exps -> ListE <$> mapM pexp exps
   CondE e0 e1 e2 -> CondE <$> pexp e0 <*> pexp e1 <*> pexp e2
   CaseE e alts -> CaseE <$> pexp e <*> mapM pmatch alts
-  LetE decs e -> LetE <$> process decs <*> pexp e
+  LetE decs e -> pdecs decs $ \decs1 -> LetE decs1 <$> pexp e
   _ -> return e
 
 pmatch :: Match -> PP Match
-pmatch (pat, body, decs) = (,,) <$> pexp pat <*> pbody body <*> process decs
+pmatch (pat, body, decs) = bindVars args $ do
+  pat1 <- pexp pat
+  pdecs decs $ \decs1 -> do
+    body1 <- pbody body
+    return (pat1, body1, decs1)
+  where args = arguments [pat]

@@ -114,3 +114,37 @@ tupCon n = "(" ++ replicate n ',' ++ ")"
 
 listCon :: Name
 listCon = "[]"
+
+binders :: [Dec] -> [Name]
+binders decs = go decs []
+  where go [] = id
+        go (dec:decs) = go decs . case dec of
+          FunD var _ -> (var:)
+          ValD pat _ _ -> bpat pat
+          DataD _ _ dcs -> compose bcon dcs
+          _ -> id
+
+arguments :: [Pat] -> [Name]
+arguments pats = compose bpat pats []
+
+bpat :: Pat -> [Name] -> [Name]
+bpat pat = case pat of
+  VarE var -> (var:)
+  AppE pat1 pat2 -> bpat pat1 . bpat pat2
+  InfixE pat1 _ pat2 -> bpat pat1 . bpat pat2
+  UInfixE pat1 op pat2 -> bpat (InfixE pat1 op pat2)
+  ParensE pat -> bpat pat
+  TupE pats -> compose bpat pats
+  ListE pats -> compose bpat pats
+  AsE var pat -> (var:) . bpat pat
+  _ -> id
+
+bcon :: Con -> [Name] -> [Name]
+bcon (NormalC dc _) = (dc:)
+
+operators :: [Dec] -> [(Name, Fixity)]
+operators decs = go decs []
+  where go [] = id
+        go (dec:decs) = go decs . case dec of
+          InfixD fix ops -> (zip ops (repeat fix) ++)
+          _ -> id
