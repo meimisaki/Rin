@@ -70,6 +70,7 @@ data Assoc = InfixN | InfixL | InfixR
 
 isWired :: Name -> Bool
 isWired x = case x of
+  ":" -> True
   ch:_ -> ch == '(' || ch == '['
   _ -> False
 

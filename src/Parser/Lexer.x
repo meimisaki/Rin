@@ -93,6 +93,7 @@ data Token
   | ITat
   | ITdot
   | ITddot
+  | ITcolon
   | ITdcolon
   | ITequal
   | ITlambda
@@ -147,6 +148,7 @@ symbols = M.fromList
   [ ("@", ITat)
   , (".", ITdot) -- for `forall`
   , ("..", ITddot)
+  , (":", ITcolon)
   , ("::", ITdcolon)
   , ("=", ITequal)
   , ("\\", ITlambda)

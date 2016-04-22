@@ -13,7 +13,7 @@ import Text.PrettyPrint
 
 -- TODO: better diagnostic
 
-%expect 6
+%expect 7
 
 %token
  'data' { L _ ITdata } -- keywords
@@ -33,6 +33,7 @@ import Text.PrettyPrint
  '@' { L _ ITat } -- reserved symbols
  '.' { L _ ITdot }
  '..' { L _ ITddot }
+ ':' { L _ ITcolon }
  '::' { L _ ITdcolon }
  '=' { L _ ITequal }
  '\\' { L _ ITlambda }
@@ -71,14 +72,27 @@ program :: { [Dec] }
   : '{' topdecls '}' { $2 }
   | open topdecls close { $2 }
 
-var :: { Name }
+varid :: { Name }
   : VARID { getVARID $1 }
-  | '(' VARSYM ')' { getVARSYM $2 }
-  | '(' '.' ')' { "." }
+
+conid :: { Name }
+  : CONID { getCONID $1 }
+
+varsym :: { Name }
+  : VARSYM { getVARSYM $1 }
+  | '.' { "." }
+
+consym :: { Name }
+  : CONSYM { getCONSYM $1 }
+  | ':' { ":" }
+
+var :: { Name }
+  : varid { $1 }
+  | '(' varsym ')' { $2 }
 
 con :: { Name }
-  : CONID { getCONID $1 }
-  | '(' CONSYM ')' { getCONSYM $2 }
+  : conid { $1 }
+  | '(' consym ')' { $2 }
   | wired { $1 }
 
 wired :: { Name }
@@ -87,13 +101,12 @@ wired :: { Name }
   | '[' ']' { listCon }
 
 varop :: { Name }
-  : VARSYM { getVARSYM $1 }
-  | '`' VARID '`' { getVARID $2 }
-  | '.' { "." }
+  : varsym { $1 }
+  | '`' varid '`' { $2 }
 
 conop :: { Name }
-  : CONSYM { getCONSYM $1 }
-  | '`' CONID '`' { getCONID $2 }
+  : consym { $1 }
+  | '`' conid '`' { $2 }
 
 op :: { Name }
   : varop { $1 }

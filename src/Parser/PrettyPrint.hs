@@ -33,8 +33,8 @@ instance Show Assoc where
 
 pid :: Name -> Doc
 pid x
-  | isWired x || isVarId x || isConId x = text x
-  | otherwise = parens (text x)
+  | isVarSym x || isConSym x = parens (text x)
+  | otherwise = text x
 
 psym :: Name -> Doc
 psym x
